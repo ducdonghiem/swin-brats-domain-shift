@@ -1,0 +1,29 @@
+# --- Data ---
+data/raw/
+data/processed/
+data/splits/
+*.nii
+*.nii.gz
+*.tar
+*.zip
+*.npy
+*.npz
+
+# --- Experiments & Models ---
+*.pth
+*.pt
+
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Environments ---
+venv/
+.env/
+.venv/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
