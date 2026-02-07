@@ -1,0 +1,8 @@
+training:
+  epochs: 100
+  warmup_epochs: 5
+  learning_rate: 0.001
+  checkpoint_dir: "checkpoints"
+  log_interval: 10
+
+device: "cuda"  # or "cpu"
