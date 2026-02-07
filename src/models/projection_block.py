@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class ModalityCNN(nn.Module):
-    def __init__(self, in_channels=1, hidden_channels=8):
+    def __init__(self, in_channels=155, hidden_channels=8):
         super(ModalityCNN, self).__init__()
         
         self.conv_11 = nn.Conv2d(in_channels, hidden_channels, kernel_size=11, padding=0, bias=True)
@@ -36,7 +36,7 @@ class ModalityCNN(nn.Module):
 
 
 class ProjectionBlock(nn.Module):
-    def __init__(self, in_channels=1, hidden_channels=8, out_channels=3, num_modalities=4):
+    def __init__(self, in_channels=155, hidden_channels=8, out_channels=3, num_modalities=4):
         super(ProjectionBlock, self).__init__()
         self.num_modalities = num_modalities
         
