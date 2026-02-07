@@ -55,48 +55,12 @@ class BraTSPreprocessor:
         
         return volume
     
-    def extract_2d_slices(self, patient_id, modalities_dict, segmentation):
-        """
-        Extract 2D slices from 3D volumes
-        
-        Args:
-            patient_id (str): Patient identifier
-            modalities_dict (dict): Dict with modality names as keys, volumes as values
-            segmentation (np.array): 3D segmentation mask
-            
-        Returns:
-            list of tuples: [(image_4ch, mask), ...]
-        """
-        slices_data = []
-        
-        # Get volume dimensions
-        depth = modalities_dict[self.modalities[0]].shape[2]  # Z-axis (slices)
-        
-        # Iterate through each 2D slice
-        for slice_idx in range(depth):
-            # Stack 4 modalities into 4-channel image
-            image_4ch = np.stack([
-                modalities_dict[mod][:, :, slice_idx] 
-                for mod in self.modalities
-            ], axis=2)  # Shape: (H, W, 4)
-            
-            # Get corresponding mask slice
-            mask = segmentation[:, :, slice_idx]
-            
-            # Skip empty slices (no brain tissue)
-            # Check if slice has meaningful content
-            if np.sum(mask) > 0 or np.mean(image_4ch) > 0.01:
-                slices_data.append((image_4ch, mask, slice_idx))
-        
-        logger.info(f"Patient {patient_id}: Extracted {len(slices_data)} slices")
-        return slices_data
-    
     def process_patient(self, patient_dir):
         """
         Process a single patient directory
         
         Returns:
-            list: [(image_4ch, mask), ...]
+            tuple: (image_4ch, mask)
         """
         patient_id = patient_dir.name
         logger.info(f"Processing {patient_id}...")
@@ -121,29 +85,29 @@ class BraTSPreprocessor:
                 return None
             
             segmentation = self.load_nifti_volume(seg_filepath)
+            image_4ch = np.stack(
+                [modalities_dict[mod] for mod in self.modalities],
+                axis=3
+            )  # Shape: (H, W, D, 4)
             
-            # Extract 2D slices
-            slices = self.extract_2d_slices(patient_id, modalities_dict, segmentation)
-            
-            return slices
+            return image_4ch, segmentation
         
         except Exception as e:
             logger.error(f"Error processing {patient_id}: {str(e)}")
             return None
-    
-    def save_slice(self, image, mask, patient_id, slice_idx, output_subdir):
-        """Save a single slice as .npy files"""
+
+    def save_volume(self, image_4ch, mask, patient_id, output_subdir):
+        """Save a single 3D volume as .npy files"""
         image_dir = output_subdir / 'images'
         mask_dir = output_subdir / 'masks'
         
-        # Ensure directories exist
         image_dir.mkdir(parents=True, exist_ok=True)
         mask_dir.mkdir(parents=True, exist_ok=True)
         
-        image_filename = str(image_dir / f"{patient_id}_slice_{slice_idx:03d}.npy")
-        mask_filename = str(mask_dir / f"{patient_id}_slice_{slice_idx:03d}.npy")
+        image_filename = str(image_dir / f"{patient_id}.npy")
+        mask_filename = str(mask_dir / f"{patient_id}.npy")
         
-        np.save(image_filename, image.astype(np.float32))
+        np.save(image_filename, image_4ch.astype(np.float32))
         np.save(mask_filename, mask.astype(np.uint8))
     
     def run(self, train_split=0.75, val_split=0.15, test_split=0.10):
@@ -193,17 +157,18 @@ class BraTSPreprocessor:
         val_ids_set = set(val_ids)
         test_ids_set = set(test_ids)
         
-        # Save slices to appropriate directories
-        total_slices = {'train': 0, 'val': 0, 'test': 0}
+        # Save volumes to appropriate directories
+        total_volumes = {'train': 0, 'val': 0, 'test': 0}
         successfully_processed = 0
         
         for patient_dir in tqdm(patient_dirs, desc="Processing and saving patients"):
             patient_id = patient_dir.name
             
             # Process patient (loads data into memory)
-            slices = self.process_patient(patient_dir)
-            if slices is None:
+            processed = self.process_patient(patient_dir)
+            if processed is None:
                 continue
+            image_4ch, mask = processed
             
             successfully_processed += 1
             
@@ -218,24 +183,23 @@ class BraTSPreprocessor:
                 output_dir = self.test_dir
                 split = 'test'
             
-            # Save slices immediately
-            for image_4ch, mask, slice_idx in slices:
-                self.save_slice(image_4ch, mask, patient_id, slice_idx, output_dir)
-                total_slices[split] += 1
+            # Save volume immediately
+            self.save_volume(image_4ch, mask, patient_id, output_dir)
+            total_volumes[split] += 1
             
             # Free memory (important!)
-            del slices
+            del image_4ch, mask
         
         logger.info("=" * 60)
         logger.info("Preprocessing Complete!")
-        logger.info(f"Train slices: {total_slices['train']}")
-        logger.info(f"Val slices: {total_slices['val']}")
-        logger.info(f"Test slices: {total_slices['test']}")
-        logger.info(f"Total slices: {sum(total_slices.values())}")
+        logger.info(f"Train volumes: {total_volumes['train']}")
+        logger.info(f"Val volumes: {total_volumes['val']}")
+        logger.info(f"Test volumes: {total_volumes['test']}")
+        logger.info(f"Total volumes: {sum(total_volumes.values())}")
         logger.info(f"Output directory: {self.output_dir}")
         logger.info("=" * 60)
         
-        return total_slices
+        return total_volumes
 
 
 def main():
