@@ -1,7 +1,6 @@
 import torch
 from torch.utils.data import Dataset
 import numpy as np
-import nibabel as nib
 
 
 class MRIDataset(Dataset):
@@ -18,13 +17,8 @@ class MRIDataset(Dataset):
         return len(self.cases)
 
     def _load_volume(self, path, dtype):
-        if path.endswith(".nii") or path.endswith(".nii.gz"):
-            image = nib.load(path)
-            data = np.asanyarray(image.dataobj)
-        else:
-            data = np.load(path)
-
-        return data.astype(dtype, copy=False)
+        # Load volume (expected .npy format)
+        return np.load(path).astype(dtype, copy=False)
 
     def __getitem__(self, idx):
         t1_path, t1ce_path, t2_path, flair_path, seg_path = self.cases[idx]
@@ -48,7 +42,8 @@ class MRIDataset(Dataset):
 def collate_modalities(batch):
     """
     Collate a batch of ((t1, t1ce, t2, flair), label) into
-    ((t1_batch, t1ce_batch, t2_batch, flair_batch), label_batch).
+    ((t1_batch, t1ce_batch, t2_batch, flair_batch), label_batch)
+    to identify scans as single case.
     """
     modalities, labels = zip(*batch)
 
