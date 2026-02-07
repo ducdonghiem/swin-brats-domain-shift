@@ -60,7 +60,7 @@ class BraTSPreprocessor:
         Process a single patient directory
         
         Returns:
-            tuple: (image_4ch, mask)
+            tuple: (modalities_dict, mask)
         """
         patient_id = patient_dir.name
         logger.info(f"Processing {patient_id}...")
@@ -85,29 +85,35 @@ class BraTSPreprocessor:
                 return None
             
             segmentation = self.load_nifti_volume(seg_filepath)
-            image_4ch = np.stack(
-                [modalities_dict[mod] for mod in self.modalities],
-                axis=3
-            )  # Shape: (H, W, D, 4)
-            
-            return image_4ch, segmentation
+            # Return dictionary of modalities (each is (H,W,D)) and the segmentation
+            return modalities_dict, segmentation
         
         except Exception as e:
             logger.error(f"Error processing {patient_id}: {str(e)}")
             return None
 
-    def save_volume(self, image_4ch, mask, patient_id, output_subdir):
-        """Save a single 3D volume as .npy files"""
-        image_dir = output_subdir / 'images'
-        mask_dir = output_subdir / 'masks'
-        
-        image_dir.mkdir(parents=True, exist_ok=True)
-        mask_dir.mkdir(parents=True, exist_ok=True)
-        
-        image_filename = str(image_dir / f"{patient_id}.npy")
-        mask_filename = str(mask_dir / f"{patient_id}.npy")
-        
-        np.save(image_filename, image_4ch.astype(np.float32))
+    def save_patient_files(self, modalities_dict, mask, patient_id, output_subdir):
+        """Save per-modality 3D volumes into a patient folder and save mask."""
+        images_root = output_subdir / 'images'
+        masks_root = output_subdir / 'masks'
+
+        patient_image_dir = images_root / patient_id
+        patient_mask_dir = masks_root / patient_id
+
+        patient_image_dir.mkdir(parents=True, exist_ok=True)
+        patient_mask_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save each modality separately
+        for mod in self.modalities:
+            if mod not in modalities_dict:
+                logger.warning(f"Modality {mod} missing for {patient_id}, skipping")
+                continue
+            mod_arr = modalities_dict[mod].astype(np.float32)
+            mod_filename = str(patient_image_dir / f"{mod}.npy")
+            np.save(mod_filename, mod_arr)
+
+        # Save mask as mask.npy inside patient mask dir
+        mask_filename = str(patient_mask_dir / "mask.npy")
         np.save(mask_filename, mask.astype(np.uint8))
     
     def run(self, train_split=0.75, val_split=0.15, test_split=0.10):
@@ -163,15 +169,15 @@ class BraTSPreprocessor:
         
         for patient_dir in tqdm(patient_dirs, desc="Processing and saving patients"):
             patient_id = patient_dir.name
-            
+
             # Process patient (loads data into memory)
             processed = self.process_patient(patient_dir)
             if processed is None:
                 continue
-            image_4ch, mask = processed
-            
+            modalities_dict, mask = processed
+
             successfully_processed += 1
-            
+
             # Determine which split this patient belongs to
             if patient_id in train_ids_set:
                 output_dir = self.train_dir
@@ -182,13 +188,13 @@ class BraTSPreprocessor:
             else:
                 output_dir = self.test_dir
                 split = 'test'
-            
-            # Save volume immediately
-            self.save_volume(image_4ch, mask, patient_id, output_dir)
+
+            # Save patient files (per modality)
+            self.save_patient_files(modalities_dict, mask, patient_id, output_dir)
             total_volumes[split] += 1
-            
+
             # Free memory (important!)
-            del image_4ch, mask
+            del modalities_dict, mask
         
         logger.info("=" * 60)
         logger.info("Preprocessing Complete!")
