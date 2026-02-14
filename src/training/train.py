@@ -1,18 +1,18 @@
-from utils.config import load_config
-from data.data_loader import MRIDataset, collate_modalities
-from models.swinUNet import SwinUNet
-from trainer import SwinTrainer
+import sys
+from pathlib import Path
 from torch.utils.data import DataLoader
-from torch.nn import CrossEntropyLoss
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim import AdamW
-from pathlib import Path
-import sys
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-sys.path.append(str(Path(__file__).resolve().parents[1] / "models"))
-sys.path.append(
-    str(Path(__file__).resolve().parents[1] / "models" / "SwinTransformers"))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.training.trainer import SwinTrainer
+from src.data.data_loader import MRIDataset, collate_modalities
+from src.utils.losses import BraTSLoss
+from src.models.swinBraTS_full import SwinBraTS
+from src.utils.config import load_config
 
 if __name__ == "__main__":
     '''
@@ -59,9 +59,15 @@ if __name__ == "__main__":
             collate_fn=collate_modalities
         )
 
-    # FIXME: Requires projection and reconstruction block to wrap SwinUNet
-    model = SwinUNet()
-    loss = CrossEntropyLoss()
+    # === Hyperparameters and model setup ===
+    model = SwinBraTS(
+        in_channels=train_config['model']['in_channels'],
+        num_classes=train_config['model']['num_classes'],
+        embed_dim=train_config['model']['embed_dim'],
+        window_size=train_config['model']['window_size'],
+        patch_size=train_config['model']['patch_size']
+    )
+    loss = BraTSLoss(device=train_config.get('device', 'cpu'))
     optimizer = AdamW(model.parameters(),
         lr=train_config['training']['learning_rate'])
 
@@ -79,5 +85,7 @@ if __name__ == "__main__":
     )
 
     history = trainer.train()
+
+    print("Training complete. Final validation mean Dice:", history['val_mean_dice'][-1])
 
     # NOTE: optionally plot metrics after training

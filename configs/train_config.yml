@@ -9,5 +9,12 @@ training:
 
 device: "cuda"  # or "cpu"
 
+model:
+  in_channels: 155
+  num_classes: 4
+  embed_dim: 32
+  window_size: 7
+  patch_size: 4
+
 # TODO: Early stopping criteria
 early_stopping:
