@@ -23,22 +23,15 @@ class MRIDataset(Dataset):
     def __getitem__(self, idx):
         t1_path, t1ce_path, t2_path, flair_path, seg_path = self.cases[idx]
 
-        # Load volumes: shape (H=240, W=240, D=155)
-        t1_vol = self._load_volume(t1_path, np.float32)
-        t1ce_vol = self._load_volume(t1ce_path, np.float32)
-        t2_vol = self._load_volume(t2_path, np.float32)
-        flair_vol = self._load_volume(flair_path, np.float32)
-        seg_vol = self._load_volume(seg_path, np.int64)
-        
-        # Transpose to (D, H, W) so depth becomes channel dimension for model
-        # Model expects (B, D=155, H=240, W=240) where D is treated as channels
-        t1 = torch.tensor(t1_vol.transpose(2, 0, 1), dtype=torch.float32)  # (D, H, W)
-        t1ce = torch.tensor(t1ce_vol.transpose(2, 0, 1), dtype=torch.float32)
-        t2 = torch.tensor(t2_vol.transpose(2, 0, 1), dtype=torch.float32)
-        flair = torch.tensor(flair_vol.transpose(2, 0, 1), dtype=torch.float32)
-        
+        # Create tensor for each modality and add channel dimension (C=1)
+        t1 = torch.tensor(self._load_volume(t1_path, np.float32), dtype=torch.float32).unsqueeze(0)
+        t1ce = torch.tensor(self._load_volume(t1ce_path, np.float32), dtype=torch.float32).unsqueeze(0)
+        t2 = torch.tensor(self._load_volume(t2_path, np.float32), dtype=torch.float32).unsqueeze(0)
+        flair = torch.tensor(self._load_volume(flair_path, np.float32), dtype=torch.float32).unsqueeze(0)
+
         # Create segmentation tensor
-        label = torch.tensor(seg_vol.transpose(2, 0, 1), dtype=torch.long)  # (D, H, W)
+        label = None
+        label = torch.tensor(self._load_volume(seg_path, np.int64), dtype=torch.long).unsqueeze(0)
 
         if self.transform:
             (t1, t1ce, t2, flair), label = self.transform((t1, t1ce, t2, flair), label)
@@ -50,25 +43,18 @@ def collate_modalities(batch):
     """
     Collate a batch of ((t1, t1ce, t2, flair), label) into
     ((t1_batch, t1ce_batch, t2_batch, flair_batch), label_batch)
-    
-    Expected input per sample:
-      t1, t1ce, t2, flair: (D=155, H=240, W=240)
-      label: (D=155, H=240, W=240)
-    
-    Output:
-      t1_batch, t1ce_batch, t2_batch, flair_batch: (B, D=155, H=240, W=240)
-      label_batch: (B, D=155, H=240, W=240)
+    to identify scans as single case.
     """
     modalities, labels = zip(*batch)
 
     t1_list, t1ce_list, t2_list, flair_list = zip(*modalities)
 
-    t1_batch = torch.stack(t1_list, dim=0)      # (B, D, H, W)
+    t1_batch = torch.stack(t1_list, dim=0)
     t1ce_batch = torch.stack(t1ce_list, dim=0)
     t2_batch = torch.stack(t2_list, dim=0)
     flair_batch = torch.stack(flair_list, dim=0)
 
-    label_batch = torch.stack(labels, dim=0)    # (B, D, H, W)
+    label_batch = torch.stack(labels, dim=0)
     return (t1_batch, t1ce_batch, t2_batch, flair_batch), label_batch
 
 # if __name__ == "__main__":
