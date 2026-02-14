@@ -1,9 +1,15 @@
 import torch
 import torch.nn as nn
-from swinEncoder import PatchPartition, PatchMerging, SwinEncoderStage
-from bottleneck import Bottleneck
-from swinDecoder import PatchExpanding, FinalPatchExpanding, SwinDecoderStage
-from skipConnection import SkipConnection
+try:
+    from swinEncoder import PatchPartition, PatchMerging, SwinEncoderStage
+    from bottleneck import Bottleneck
+    from swinDecoder import PatchExpanding, FinalPatchExpanding, SwinDecoderStage
+    from skipConnection import SkipConnection
+except ImportError:
+    from .swinEncoder import PatchPartition, PatchMerging, SwinEncoderStage
+    from .bottleneck import Bottleneck
+    from .swinDecoder import PatchExpanding, FinalPatchExpanding, SwinDecoderStage
+    from .skipConnection import SkipConnection
 
 
 class SwinUNet(nn.Module):

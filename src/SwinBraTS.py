@@ -26,7 +26,7 @@ for f in files:
 # -------------------------
 
 # pick one modality to visualize (e.g., FLAIR)
-flair_name = [f for f in files if "flair" in f.lower()][0]
+flair_name = [f for f in files if "seg" in f.lower()][0]
 flair = arrays[flair_name]
 
 # print(np.unique(flair))
@@ -36,6 +36,11 @@ print(f"FLAIR value range: {flair.min()} to {flair.max()}")
 print(f"FLAIR mean: {flair.mean():.2f}, std: {flair.std():.2f}")
 # count the number of voxels for each label
 # print("Label counts:", {label: np.sum(flair == label) for label in np.unique(flair)})
+# print unique labels and their counts
+print("Unique labels and counts:")
+for label in np.unique(flair):
+    count = np.sum(flair == label)
+    print(f"Label {label}: {count} voxels")
 
 
 # choose a slice index (middle of the volume)

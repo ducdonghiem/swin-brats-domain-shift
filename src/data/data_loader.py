@@ -78,19 +78,27 @@ class MRIDataset(Dataset):
 
         return cases
 
+    def _to_dhw(self, vol):
+        """
+        Convert BraTS array from (H, W, D) to (D, H, W) so D is channel dim for Conv2d.
+        """
+        if vol.ndim != 3:
+            raise ValueError(f"Expected 3D volume, got shape {vol.shape}")
+        return np.transpose(vol, (2, 0, 1))
+
     def __getitem__(self, idx):
         case = self.cases[idx]
         mod_paths = case[:-1]
         seg_path = case[-1]
 
         modalities = tuple(
-            torch.tensor(self._load_volume(path, np.float32),
-                         dtype=torch.float32).unsqueeze(0)
+            torch.tensor(self._to_dhw(self._load_volume(path, np.float32)),
+                         dtype=torch.float32)
             for path in mod_paths
         )
 
-        label = torch.tensor(self._load_volume(
-            seg_path, np.int64), dtype=torch.long).unsqueeze(0)
+        label = torch.tensor(self._to_dhw(self._load_volume(
+            seg_path, np.int64)), dtype=torch.long)
 
         if self.transform:
             modalities, label = self.transform(modalities, label)

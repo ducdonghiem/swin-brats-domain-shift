@@ -116,14 +116,13 @@ class SwinTrainer():
             Average loss and accuracy for the epoch.
         '''
 
-        # TODO: create eval function
         self.model.eval() # Set model to evaluation mode
 
         val_loss = 0.0
         val_correct = 0
         val_total = 0
 
-        with torch.no_grad():
+        with torch.no_grad(): # Disable gradient computation for validation
             for inputs, labels in self.val_loader:
                 # Move inputs to device
                 inputs = [x.to(self.device) for x in inputs]

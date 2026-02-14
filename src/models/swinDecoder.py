@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
-from SwinTransformers.swinTransformerBlock import SwinTransformerBlock
+try:
+    from SwinTransformers.swinTransformerBlock import SwinTransformerBlock
+except ImportError:
+    from .SwinTransformers.swinTransformerBlock import SwinTransformerBlock
 
 
 class PatchExpanding(nn.Module):
