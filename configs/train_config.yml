@@ -1,13 +1,23 @@
 training:
-  epochs: 100
+  epochs: 5 #100
   warmup_epochs: 5
-  learning_rate: 0.001
+  learning_rate: 0.0001 #0.0003
   checkpoint_dir: "checkpoints"
+  checkpoint_interval: 10
   log_interval: 10
-  batch_size: 1
-  num_workers: 0
+  batch_size: 1 #8
+  num_workers: 4
+  results_dir: "results"
 
-device: "cuda"  # or "cpu"
+device: "cuda"
+
+data:
+  train_dir: "data/processed/brats/train-fake"
+  val_dir: "data/processed/brats/val-fake"
+  test_dir: "data/processed/brats/test-fake"
+  modality_order: ["flair", "t1", "t1ce", "t2"]
+  pin_memory: true
+  shuffle_train: true
 
 model:
   in_channels: 155
@@ -16,5 +26,9 @@ model:
   window_size: 7
   patch_size: 4
 
-# TODO: Early stopping criteria
 early_stopping:
+  enabled: true
+  patience: 15
+  min_delta: 0.001
+  metric: "val_mean_dice"
+  mode: "max"

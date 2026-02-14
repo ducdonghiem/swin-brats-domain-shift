@@ -1,4 +1,3 @@
-
 import os
 import torch
 from tqdm import tqdm
@@ -16,11 +15,7 @@ class SwinTrainer():
             loss_fn: Loss function
             optimizer: Optimization algorithm
             scheduler: Learning rate scheduler
-            epochs: Number of training epochs (excluding warmup)
-            warmup_epochs: Number of warmup epochs for learning rate scheduler
-            learning_rate: Initial learning rate for optimizer
-            device: e.g. 'cuda' or 'cpu'
-            log_interval: How often to log training progress (in batches)
+            config: Configuration dictionary
         '''
 
         self.model = model
@@ -42,17 +37,25 @@ class SwinTrainer():
 
         self.model.to(self.device)
 
-        self.log_interval = config['training'].get('log_interval', 10)
-        self.checkpoint_dir = config['training'].get(
-            'checkpoint_dir', 'checkpoints')
+        self.log_interval = config['training']['log_interval']
+        self.checkpoint_dir = config['training']['checkpoint_dir']
+        self.checkpoint_interval = config['training']['checkpoint_interval']
 
         self.best_metric = 0.0  # Best validation mean Dice observed during training
+        
+        # Early stopping setup
+        self.early_stopping_enabled = config.get('early_stopping', {}).get('enabled', False)
+        self.early_stopping_patience = config.get('early_stopping', {}).get('patience', 15)
+        self.early_stopping_min_delta = config.get('early_stopping', {}).get('min_delta', 0.001)
+        self.early_stopping_metric = config.get('early_stopping', {}).get('metric', 'val_mean_dice')
+        self.early_stopping_mode = config.get('early_stopping', {}).get('mode', 'max')
+        self.early_stopping_counter = 0
+        self.early_stopping_best_score = None
+        
         # History of training/validation metrics for analysis and visualization
         self.history = {
             'train_loss': [],
-            'train_acc': [],
             'val_loss': [],
-            'val_acc': [],
             'val_mean_dice': [],
             'val_dice_wt': [],
             'val_dice_tc': [],
@@ -88,14 +91,12 @@ class SwinTrainer():
         Iteration for one training epoch. 
 
         Returns:
-            Average loss and accuracy for the epoch.
+            Average loss for the epoch.
         '''
 
         self.model.train()  # Set model to training mode
 
         train_loss = 0.0
-        train_correct = 0
-        train_total = 0
 
         train_loader = tqdm(self.training_loader, desc="Training", leave=False)
         for _, (inputs, labels) in enumerate(train_loader):
@@ -112,34 +113,27 @@ class SwinTrainer():
             loss.backward()
             self.optimizer.step()
 
-            # Compute training accuracy for this batch
+            # Track loss
             train_loss += loss.item()
-            _, predicted = torch.max(outputs.data, 1)
-            train_total += labels.size(0)
-            train_correct += predicted.eq(labels).sum().item()
 
             avg_loss = train_loss / max(1, len(train_loader))
-            avg_acc = 100. * train_correct / max(1, train_total)
-            train_loader.set_postfix(loss=f"{avg_loss:.4f}", acc=f"{avg_acc:.2f}")
+            train_loader.set_postfix(loss=f"{avg_loss:.4f}")
 
         # Calculate epoch metrics
         avg_loss = train_loss / len(self.training_loader)
-        avg_acc = 100. * train_correct / train_total
 
-        return avg_loss, avg_acc
+        return avg_loss
 
     def _validate_epoch(self):
         '''
         Iteration for one validation epoch.
         Returns:
-            Average loss and accuracy for the epoch.
+            Average loss and metrics for the epoch.
         '''
 
         self.model.eval()  # Set model to evaluation mode
 
         val_loss = 0.0
-        val_correct = 0
-        val_total = 0
         metric_sums = {
             'dice_wt': 0.0,
             'dice_tc': 0.0,
@@ -166,10 +160,6 @@ class SwinTrainer():
                 # Track metrics
                 val_loss += loss.item()
 
-                _, predicted = torch.max(outputs.data, 1)
-                val_total += labels.size(0)
-                val_correct += predicted.eq(labels).sum().item()
-
                 batch_metrics = self.metrics.compute_metrics(outputs, labels)
                 batch_size = labels.size(0)
                 for key in metric_sums:
@@ -182,22 +172,54 @@ class SwinTrainer():
 
         # Calculate epoch metrics
         avg_loss = val_loss / len(self.val_loader)
-        avg_acc = 100. * val_correct / val_total
 
         avg_metrics = {
             key: (metric_sums[key] / metric_count if metric_count else 0.0)
             for key in metric_sums
         }
 
-        return avg_loss, avg_acc, avg_metrics
+        return avg_loss, avg_metrics
+
+    def _check_early_stopping(self, current_score):
+        '''
+        Check if early stopping criteria are met.
+        
+        Args:
+            current_score (float): Current validation metric score
+            
+        Returns:
+            bool: True if training should stop, False otherwise
+        '''
+        if not self.early_stopping_enabled:
+            return False
+            
+        if self.early_stopping_best_score is None:
+            self.early_stopping_best_score = current_score
+            return False
+            
+        # Check if there's improvement based on mode
+        if self.early_stopping_mode == 'max':
+            improved = current_score > (self.early_stopping_best_score + self.early_stopping_min_delta)
+        else:  # mode == 'min'
+            improved = current_score < (self.early_stopping_best_score - self.early_stopping_min_delta)
+            
+        if improved:
+            self.early_stopping_best_score = current_score
+            self.early_stopping_counter = 0
+            return False
+        else:
+            self.early_stopping_counter += 1
+            if self.early_stopping_counter >= self.early_stopping_patience:
+                return True
+            return False
 
     def _save_checkpoint(self, epoch, is_best=False):
         '''
-        Save model checkpoint for the current epoch. If this is the best model so far, also save a copy as 'best_model.pth'.
+        Save model checkpoint for the current epoch.
 
         Args:
             epoch (int): Current epoch number
-            is_best (bool): Whether this checkpoint has the best validation accuracy
+            is_best (bool): Unused, kept for compatibility
         '''
 
         checkpoint = {
@@ -209,17 +231,16 @@ class SwinTrainer():
             'history': self.history
         }
 
+        # Create checkpoint directory if it doesn't exist
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+
         checkpoint_path = os.path.join(
             self.checkpoint_dir,
-            f'checkpoint_epoch_{epoch}.pth'
+            f'checkpoint_epoch_{epoch + 1}.pth'
         )
 
         # Save checkpoint for this epoch
         torch.save(checkpoint, checkpoint_path)
-
-        if is_best:
-            torch.save(checkpoint, os.path.join(
-                self.checkpoint_dir, 'best_model.pth'))
 
     def train(self):
         '''
@@ -229,14 +250,15 @@ class SwinTrainer():
             History of training and validation metrics across epochs.
         '''
 
-        epoch_iter = tqdm(range(self.epochs + self.warmup_epochs), desc="Epochs")
-        for epoch in epoch_iter:
+        for epoch in range(self.epochs + self.warmup_epochs):
+            print(f"\nEpoch {epoch + 1}/{self.epochs + self.warmup_epochs}")
+            
             # Apply learning rate warmup if needed
             _warmup_lr = self._warmup(epoch)
 
             # Train and validate one epoch
-            train_loss, train_acc = self._train_epoch()
-            val_loss, val_acc, val_metrics = self._validate_epoch()
+            train_loss = self._train_epoch()
+            val_loss, val_metrics = self._validate_epoch()
 
             # Step the learning rate scheduler after warmup epochs
             if epoch >= self.warmup_epochs:
@@ -246,9 +268,7 @@ class SwinTrainer():
             current_lr = self.optimizer.param_groups[0]['lr']
 
             self.history['train_loss'].append(train_loss)
-            self.history['train_acc'].append(train_acc)
             self.history['val_loss'].append(val_loss)
-            self.history['val_acc'].append(val_acc)
             self.history['val_mean_dice'].append(val_metrics['mean_dice'])
             self.history['val_dice_wt'].append(val_metrics['dice_wt'])
             self.history['val_dice_tc'].append(val_metrics['dice_tc'])
@@ -259,18 +279,40 @@ class SwinTrainer():
             self.history['val_mean_hd95'].append(val_metrics['mean_hd95'])
             self.history['learning_rate'].append(current_lr)
 
+            # Print epoch summary
+            print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+            print(f"Val Mean Dice: {val_metrics['mean_dice']:.4f} | Val Dice WT: {val_metrics['dice_wt']:.4f} | Val Dice TC: {val_metrics['dice_tc']:.4f} | Val Dice ET: {val_metrics['dice_et']:.4f}")
+            print(f"Val Mean HD95: {val_metrics['mean_hd95']:.4f} | Val HD95 WT: {val_metrics['hd95_wt']:.4f} | Val HD95 TC: {val_metrics['hd95_tc']:.4f} | Val HD95 ET: {val_metrics['hd95_et']:.4f}")
+            print(f"Learning Rate: {current_lr:.6f}")
+
             is_best = val_metrics['mean_dice'] > self.best_metric
             if is_best:
                 self.best_metric = val_metrics['mean_dice']
+                # Save best model immediately
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                    'scheduler_state_dict': self.scheduler.state_dict(),
+                    'best_metric': self.best_metric,
+                    'history': self.history
+                }
+                os.makedirs(self.checkpoint_dir, exist_ok=True)
+                best_path = os.path.join(self.checkpoint_dir, 'best_model.pth')
+                torch.save(checkpoint, best_path)
+                print(f"New best model saved! Mean Dice: {self.best_metric:.4f}")
 
-            if (epoch + 1) % self.checkpoint_interval == 0 or is_best:
-                self._save_checkpoint(epoch, is_best=is_best)
-
-            epoch_iter.set_postfix(
-                train_loss=f"{train_loss:.4f}",
-                val_loss=f"{val_loss:.4f}",
-                val_mean_dice=f"{val_metrics['mean_dice']:.4f}"
-            )
+            # Save checkpoint every checkpoint_interval epochs after warmup
+            if epoch >= self.warmup_epochs and (epoch - self.warmup_epochs + 1) % self.checkpoint_interval == 0:
+                self._save_checkpoint(epoch, is_best=False)
+                print(f"Checkpoint saved at epoch {epoch + 1}")
+                
+            # Check early stopping
+            early_stop_metric = val_metrics.get(self.early_stopping_metric.replace('val_', ''), val_metrics['mean_dice'])
+            if self._check_early_stopping(early_stop_metric):
+                print(f"\nEarly stopping triggered at epoch {epoch + 1}")
+                print(f"No improvement in {self.early_stopping_metric} for {self.early_stopping_patience} epochs")
+                break
 
         return self.history
 
@@ -283,3 +325,121 @@ class SwinTrainer():
         self.history = checkpoint['history']
 
         return checkpoint['epoch']
+
+    def test(self, test_loader):
+        '''
+        Evaluate model on test set.
+        
+        Args:
+            test_loader: DataLoader for test data
+            
+        Returns:
+            Dictionary of test metrics
+        '''
+        print("\n" + "="*50)
+        print("Testing on test set...")
+        print("="*50)
+        
+        self.model.eval()
+        
+        test_loss = 0.0
+        metric_sums = {
+            'dice_wt': 0.0,
+            'dice_tc': 0.0,
+            'dice_et': 0.0,
+            'mean_dice': 0.0,
+            'hd95_wt': 0.0,
+            'hd95_tc': 0.0,
+            'hd95_et': 0.0,
+            'mean_hd95': 0.0,
+        }
+        metric_count = 0
+        
+        with torch.no_grad():
+            test_loader_iter = tqdm(test_loader, desc="Testing", leave=False)
+            for inputs, labels in test_loader_iter:
+                inputs = [x.to(self.device) for x in inputs]
+                labels = labels.to(self.device)
+                
+                outputs = self.model(inputs)
+                loss = self.loss_fn(outputs, labels)
+                
+                test_loss += loss.item()
+                
+                batch_metrics = self.metrics.compute_metrics(outputs, labels)
+                batch_size = labels.size(0)
+                for key in metric_sums:
+                    metric_sums[key] += batch_metrics[key] * batch_size
+                metric_count += batch_size
+                
+                avg_loss = test_loss / max(1, len(test_loader_iter))
+                avg_mean_dice = metric_sums['mean_dice'] / max(1, metric_count)
+                test_loader_iter.set_postfix(loss=f"{avg_loss:.4f}", mean_dice=f"{avg_mean_dice:.4f}")
+        
+        avg_loss = test_loss / len(test_loader)
+        avg_metrics = {
+            key: (metric_sums[key] / metric_count if metric_count else 0.0)
+            for key in metric_sums
+        }
+        
+        print("\n" + "="*50)
+        print("TEST RESULTS")
+        print("="*50)
+        print(f"Test Loss: {avg_loss:.4f}")
+        print(f"Test Mean Dice: {avg_metrics['mean_dice']:.4f} | Test Dice WT: {avg_metrics['dice_wt']:.4f} | Test Dice TC: {avg_metrics['dice_tc']:.4f} | Test Dice ET: {avg_metrics['dice_et']:.4f}")
+        print(f"Test Mean HD95: {avg_metrics['mean_hd95']:.4f} | Test HD95 WT: {avg_metrics['hd95_wt']:.4f} | Test HD95 TC: {avg_metrics['hd95_tc']:.4f} | Test HD95 ET: {avg_metrics['hd95_et']:.4f}")
+        print("="*50)
+        
+        return avg_metrics
+
+    def save_results(self, results_dir, test_metrics=None):
+        '''
+        Save training results to a file.
+        
+        Args:
+            results_dir: Directory to save results
+            test_metrics: Optional test metrics dictionary
+        '''
+        import json
+        from datetime import datetime
+        
+        os.makedirs(results_dir, exist_ok=True)
+        
+        # Generate timestamp for unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        results_file = os.path.join(results_dir, f'results_{timestamp}.json')
+        
+        results = {
+            'timestamp': timestamp,
+            'config': {
+                'epochs': self.epochs,
+                'warmup_epochs': self.warmup_epochs,
+                'learning_rate': self.learning_rate,
+                'batch_size': len(self.training_loader.dataset) // len(self.training_loader),
+                'device': self.device,
+            },
+            'best_validation_metric': float(self.best_metric),
+            'final_epoch': len(self.history['train_loss']),
+            'training_history': {
+                'train_loss': [float(x) for x in self.history['train_loss']],
+                'val_loss': [float(x) for x in self.history['val_loss']],
+                'val_mean_dice': [float(x) for x in self.history['val_mean_dice']],
+                'val_dice_wt': [float(x) for x in self.history['val_dice_wt']],
+                'val_dice_tc': [float(x) for x in self.history['val_dice_tc']],
+                'val_dice_et': [float(x) for x in self.history['val_dice_et']],
+                'val_hd95_wt': [float(x) for x in self.history['val_hd95_wt']],
+                'val_hd95_tc': [float(x) for x in self.history['val_hd95_tc']],
+                'val_hd95_et': [float(x) for x in self.history['val_hd95_et']],
+                'val_mean_hd95': [float(x) for x in self.history['val_mean_hd95']],
+                'learning_rate': [float(x) for x in self.history['learning_rate']],
+            }
+        }
+        
+        if test_metrics is not None:
+            results['test_metrics'] = {k: float(v) for k, v in test_metrics.items()}
+        
+        with open(results_file, 'w') as f:
+            json.dump(results, f, indent=2)
+        
+        print(f"\nResults saved to {results_file}")
+        return results_file

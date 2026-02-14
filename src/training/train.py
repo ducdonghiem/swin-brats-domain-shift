@@ -20,12 +20,11 @@ if __name__ == "__main__":
     '''
     train_config = load_config('configs/train_config.yml')
 
-    # TODO: Data augmentation
-
     # === Data loading ===
-    train_dir = Path("src/data/processed/train")
-    val_dir = Path("src/data/processed/val")
-    modality_order = ["flair", "t1", "t1ce", "t2"]
+    train_dir = Path(train_config['data']['train_dir'])
+    val_dir = Path(train_config['data']['val_dir'])
+    test_dir = Path(train_config['data']['test_dir'])
+    modality_order = train_config['data']['modality_order']
 
     train_dataset = MRIDataset(
         data_dir=train_dir,
@@ -35,16 +34,22 @@ if __name__ == "__main__":
         data_dir=val_dir,
         modalities=modality_order
     )
+    test_dataset = MRIDataset(
+        data_dir=test_dir,
+        modalities=modality_order
+    )
 
-    batch_size = train_config["training"].get("batch_size", 1)
-    num_workers = train_config["training"].get("num_workers", 0)
+    batch_size = train_config['training']['batch_size']
+    num_workers = train_config['training']['num_workers']
+    pin_memory = train_config['data']['pin_memory']
+    shuffle_train = train_config['data']['shuffle_train']
 
     training_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=shuffle_train,
         num_workers=num_workers,
-        pin_memory=False,
+        pin_memory=pin_memory,
         collate_fn=collate_modalities
     )
     if len(val_dataset) == 0:
@@ -55,9 +60,18 @@ if __name__ == "__main__":
             batch_size=batch_size,
             shuffle=False,
             num_workers=num_workers,
-            pin_memory=False,
+            pin_memory=pin_memory,
             collate_fn=collate_modalities
         )
+    
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        collate_fn=collate_modalities
+    )
 
     # === Hyperparameters and model setup ===
     model = SwinBraTS(
@@ -67,7 +81,7 @@ if __name__ == "__main__":
         window_size=train_config['model']['window_size'],
         patch_size=train_config['model']['patch_size']
     )
-    loss = BraTSLoss(device=train_config.get('device', 'cpu'))
+    loss = BraTSLoss(device=train_config['device'])
     optimizer = AdamW(model.parameters(),
         lr=train_config['training']['learning_rate'])
 
@@ -86,6 +100,21 @@ if __name__ == "__main__":
 
     history = trainer.train()
 
-    print("Training complete. Final validation mean Dice:", history['val_mean_dice'][-1])
-
-    # NOTE: optionally plot metrics after training
+    print("\n" + "="*50)
+    print("Training complete!")
+    print(f"Best validation Mean Dice: {trainer.best_metric:.4f}")
+    print("="*50)
+    
+    # Load best model and evaluate on test set
+    best_checkpoint_path = Path(train_config['training']['checkpoint_dir']) / 'best_model.pth'
+    test_metrics = None
+    if best_checkpoint_path.exists():
+        print(f"\nLoading best model from {best_checkpoint_path}")
+        trainer.load_checkpoint(best_checkpoint_path)
+        test_metrics = trainer.test(test_loader)
+    else:
+        print("\nWarning: No best model checkpoint found, skipping test evaluation")
+    
+    # Save results
+    results_dir = train_config['training']['results_dir']
+    trainer.save_results(results_dir, test_metrics)
