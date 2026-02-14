@@ -6,3 +6,5 @@ training:
   log_interval: 10
 
 device: "cuda"  # or "cpu"
+
+# early stopping
