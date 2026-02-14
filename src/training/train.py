@@ -1,6 +1,9 @@
-import torch
-from trainer import Trainer
-from utils.config import load_config
+from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[1] / "models"))
+sys.path.append(str(Path(__file__).resolve().parents[1] / "models" / "SwinTransformers"))
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.nn import CrossEntropyLoss

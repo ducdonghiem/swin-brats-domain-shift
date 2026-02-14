@@ -4,11 +4,11 @@ import torch
 
 class SwinTrainer():
 
-    def __init__(self, model, train_loader, val_loader, loss_fn, optimizer, scheduler, config):
+    def __init__(self, model, training_loader, val_loader, loss_fn, optimizer, scheduler, config):
         '''
         Args:
             model: Model to be trained
-            train_loader: Data loader for training data
+            training_loader: Data loader for training data
             val_loader: Data loader for validation data
             loss_fn: Loss function
             optimizer: Optimization algorithm
@@ -21,7 +21,7 @@ class SwinTrainer():
         '''
 
         self.model = model
-        self.train_loader = train_loader
+        self.training_loader = training_loader
         self.val_loader = val_loader
         self.loss_fn = loss_fn
         self.optimizer = optimizer
@@ -31,7 +31,13 @@ class SwinTrainer():
         self.warmup_epochs = config['training']['warmup_epochs']
         self.learning_rate = config['training']['learning_rate']
 
-        self.device = config['device']
+        requested_device = config.get('device', 'cpu')
+        if requested_device == 'cuda' and not torch.cuda.is_available():
+            self.device = 'cpu'
+        else:
+            self.device = requested_device
+
+        self.model.to(self.device)
 
         self.log_interval = config['training'].get('log_interval', 10)
         self.checkpoint_dir = config['training'].get('checkpoint_dir', 'checkpoints')
@@ -77,7 +83,7 @@ class SwinTrainer():
         train_correct = 0
         train_total = 0
 
-        for batch_idx, (inputs,labels) in enumerate(self.train_loader):
+        for _, (inputs,labels) in enumerate(self.training_loader):
             # Move each modality in inputs to the target device; inputs is a list of tensors.
             inputs = [x.to(self.device) for x in inputs]
             labels = labels.to(self.device)
@@ -98,7 +104,7 @@ class SwinTrainer():
             train_correct += predicted.eq(labels).sum().item()
 
         # Calculate epoch metrics
-        avg_loss = train_loss / len(self.train_loader)
+        avg_loss = train_loss / len(self.training_loader)
         avg_acc = 100. * train_correct / train_total
 
         return avg_loss, avg_acc
@@ -110,13 +116,14 @@ class SwinTrainer():
             Average loss and accuracy for the epoch.
         '''
 
+        # TODO: create eval function
         self.model.eval() # Set model to evaluation mode
 
         val_loss = 0.0
         val_correct = 0
         val_total = 0
 
-        with torch.no_grad(): # Disable gradient computation for validation
+        with torch.no_grad():
             for inputs, labels in self.val_loader:
                 # Move inputs to device
                 inputs = [x.to(self.device) for x in inputs]
@@ -180,7 +187,7 @@ class SwinTrainer():
             _warmup_lr = self._warmup(epoch)
 
             # Train and validate one epoch
-            train_loss, train_acc = self._train_epoch(epoch)
+            train_loss, train_acc = self._train_epoch()
             val_loss, val_acc = self._validate_epoch()
 
             # Step the learning rate scheduler after warmup epochs
