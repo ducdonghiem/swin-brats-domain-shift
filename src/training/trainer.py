@@ -1,6 +1,7 @@
 
 import os
 import torch
+from tqdm import tqdm
 
 from src.utils.metrics import BraTSMetrics
 
@@ -96,7 +97,8 @@ class SwinTrainer():
         train_correct = 0
         train_total = 0
 
-        for _, (inputs, labels) in enumerate(self.training_loader):
+        train_loader = tqdm(self.training_loader, desc="Training", leave=False)
+        for _, (inputs, labels) in enumerate(train_loader):
             # Move each modality in inputs to the target device; inputs is a list of tensors.
             inputs = [x.to(self.device) for x in inputs]
             labels = labels.to(self.device)
@@ -115,6 +117,10 @@ class SwinTrainer():
             _, predicted = torch.max(outputs.data, 1)
             train_total += labels.size(0)
             train_correct += predicted.eq(labels).sum().item()
+
+            avg_loss = train_loss / max(1, len(train_loader))
+            avg_acc = 100. * train_correct / max(1, train_total)
+            train_loader.set_postfix(loss=f"{avg_loss:.4f}", acc=f"{avg_acc:.2f}")
 
         # Calculate epoch metrics
         avg_loss = train_loss / len(self.training_loader)
@@ -147,7 +153,8 @@ class SwinTrainer():
         metric_count = 0
 
         with torch.no_grad():  # Disable gradient computation for validation
-            for inputs, labels in self.val_loader:
+            val_loader = tqdm(self.val_loader, desc="Validating", leave=False)
+            for inputs, labels in val_loader:
                 # Move inputs to device
                 inputs = [x.to(self.device) for x in inputs]
                 labels = labels.to(self.device)
@@ -168,6 +175,10 @@ class SwinTrainer():
                 for key in metric_sums:
                     metric_sums[key] += batch_metrics[key] * batch_size
                 metric_count += batch_size
+
+                avg_loss = val_loss / max(1, len(val_loader))
+                avg_mean_dice = metric_sums['mean_dice'] / max(1, metric_count)
+                val_loader.set_postfix(loss=f"{avg_loss:.4f}", mean_dice=f"{avg_mean_dice:.4f}")
 
         # Calculate epoch metrics
         avg_loss = val_loss / len(self.val_loader)
@@ -218,7 +229,8 @@ class SwinTrainer():
             History of training and validation metrics across epochs.
         '''
 
-        for epoch in range(self.epochs + self.warmup_epochs):
+        epoch_iter = tqdm(range(self.epochs + self.warmup_epochs), desc="Epochs")
+        for epoch in epoch_iter:
             # Apply learning rate warmup if needed
             _warmup_lr = self._warmup(epoch)
 
@@ -253,6 +265,12 @@ class SwinTrainer():
 
             if (epoch + 1) % self.checkpoint_interval == 0 or is_best:
                 self._save_checkpoint(epoch, is_best=is_best)
+
+            epoch_iter.set_postfix(
+                train_loss=f"{train_loss:.4f}",
+                val_loss=f"{val_loss:.4f}",
+                val_mean_dice=f"{val_metrics['mean_dice']:.4f}"
+            )
 
         return self.history
 
