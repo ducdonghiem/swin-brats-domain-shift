@@ -20,7 +20,7 @@ class SwinBraTS(nn.Module):
     Complete end-to-end SwinBraTS model for brain tumor segmentation.
     
     Pipeline:
-        Input: 4 × (B, 1, 240, 240) [FLAIR, T1, T1ce, T2]
+        Input: 4 × (B, 155, 240, 240) [FLAIR, T1, T1ce, T2]
             ↓
         ProjectionBlock: Fuse 4 modalities → (B, 3, 224, 224)
             ↓
@@ -31,7 +31,7 @@ class SwinBraTS(nn.Module):
         Output: 4 class-specific segmentation logits
     
     Args:
-        in_channels (int): Input channels per modality. Default: 1
+        in_channels (int): Input channels per modality. Default: 155
         num_classes (int): Number of segmentation classes. Default: 4
         embed_dim (int): Initial embedding dimension for Swin. Default: 48
         window_size (int): Swin window size. Default: 7
@@ -40,7 +40,7 @@ class SwinBraTS(nn.Module):
     
     def __init__(
         self,
-        in_channels=1,
+        in_channels=155,
         num_classes=4,
         embed_dim=48,
         window_size=7,
@@ -74,7 +74,7 @@ class SwinBraTS(nn.Module):
         
         # ============ RECONSTRUCTION BLOCK ============
         # Upsamples from Swin decoder output back to original resolution
-        # Output: List of 4 × (B, 4, 240, 240) class logits
+        # Output: List of 4 × (B, 155, 240, 240)
         self.reconstruction_block = ReconstructionBlock(
             in_channels=96,
             hidden_channels=32,
@@ -87,21 +87,21 @@ class SwinBraTS(nn.Module):
         Forward pass through the complete SwinBraTS pipeline.
         
         Args:
-            modalities (list of torch.Tensor): List of 4 modality tensors, each shape (B, 1, 240, 240)
+            modalities (list of torch.Tensor): List of 4 modality tensors, each shape (B, 155, 240, 240)
                 - modalities[0]: FLAIR
                 - modalities[1]: T1
                 - modalities[2]: T1ce
                 - modalities[3]: T2
         
         Returns:
-            logits (list of torch.Tensor): List of 4 class-specific logit tensors, each shape (B, 4, 240, 240)
+            logits (list of torch.Tensor): List of 4 class-specific logit tensors, each shape (B, 155, 240, 240)
                 - logits[0]: Background class logits
                 - logits[1]: Necrotic core class logits
                 - logits[2]: Edema class logits
                 - logits[3]: Enhancing tumor class logits
         """
         # ============ STEP 1: PROJECT MODALITIES ============
-        # Input: 4 × (B, 1, 240, 240)
+        # Input: 4 × (B, 155, 240, 240)
         # Output: (B, 3, 224, 224)
         fused = self.projection_block(modalities)
         
@@ -112,7 +112,7 @@ class SwinBraTS(nn.Module):
         
         # ============ STEP 3: RECONSTRUCT ============
         # Input: (B, 96, 224, 224)
-        # Output: List of 4 × (B, 4, 240, 240)
+        # Output: List of 4 × (B, 155, 240, 240)
         logits = self.reconstruction_block(features)
         
         return logits
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     
     # Create model
     model = SwinBraTS(
-        in_channels=1,
+        in_channels=155,
         num_classes=4,
         embed_dim=48,
         window_size=7,
@@ -136,10 +136,10 @@ if __name__ == "__main__":
     # Create dummy input: batch_size=2, 4 modalities, 240×240 each
     batch_size = 2
     modalities = [
-        torch.randn(batch_size, 1, 240, 240),  # FLAIR
-        torch.randn(batch_size, 1, 240, 240),  # T1
-        torch.randn(batch_size, 1, 240, 240),  # T1ce
-        torch.randn(batch_size, 1, 240, 240),  # T2
+        torch.randn(batch_size, 155, 240, 240),  # FLAIR
+        torch.randn(batch_size, 155, 240, 240),  # T1
+        torch.randn(batch_size, 155, 240, 240),  # T1ce
+        torch.randn(batch_size, 155, 240, 240),  # T2
     ]
     
     print("Input shapes:")

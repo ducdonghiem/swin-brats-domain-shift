@@ -23,15 +23,15 @@ class MRIDataset(Dataset):
     def __getitem__(self, idx):
         t1_path, t1ce_path, t2_path, flair_path, seg_path = self.cases[idx]
 
-        # Create tensor for each modality and add channel dimension (C=1)
-        t1 = torch.tensor(self._load_volume(t1_path, np.float32), dtype=torch.float32).unsqueeze(0)
-        t1ce = torch.tensor(self._load_volume(t1ce_path, np.float32), dtype=torch.float32).unsqueeze(0)
-        t2 = torch.tensor(self._load_volume(t2_path, np.float32), dtype=torch.float32).unsqueeze(0)
-        flair = torch.tensor(self._load_volume(flair_path, np.float32), dtype=torch.float32).unsqueeze(0)
+        # Each modality tensor shape: (155, 240, 240)
+        t1 = torch.tensor(self._load_volume(t1_path, np.float32), dtype=torch.float32)
+        t1ce = torch.tensor(self._load_volume(t1ce_path, np.float32), dtype=torch.float32)
+        t2 = torch.tensor(self._load_volume(t2_path, np.float32), dtype=torch.float32)
+        flair = torch.tensor(self._load_volume(flair_path, np.float32), dtype=torch.float32)
 
         # Create segmentation tensor
         label = None
-        label = torch.tensor(self._load_volume(seg_path, np.int64), dtype=torch.long).unsqueeze(0)
+        label = torch.tensor(self._load_volume(seg_path, np.int64), dtype=torch.long)
 
         if self.transform:
             (t1, t1ce, t2, flair), label = self.transform((t1, t1ce, t2, flair), label)
@@ -83,9 +83,9 @@ def collate_modalities(batch):
 
 #     # Iterate
 #     for (t1, t1ce, t2, flair), masks in loader:
-#         print("T1 batch shape:", t1.shape)          # (B, 1, D, H, W)
-#         print("T1ce batch shape:", t1ce.shape)      # (B, 1, D, H, W)
-#         print("T2 batch shape:", t2.shape)          # (B, 1, D, H, W)
-#         print("Flair batch shape:", flair.shape)    # (B, 1, D, H, W)
-#         print("Mask batch shape:", masks.shape)     # (B, 1, D, H, W)
+#         print("T1 batch shape:", t1.shape)          # (B, D, H, W)
+#         print("T1ce batch shape:", t1ce.shape)      # (B, D, H, W)
+#         print("T2 batch shape:", t2.shape)          # (B, D, H, W)
+#         print("Flair batch shape:", flair.shape)    # (B, D, H, W)
+#         print("Mask batch shape:", masks.shape)     # (B, D, H, W)
 #         break
