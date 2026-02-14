@@ -140,19 +140,36 @@ class BraTSPreprocessor:
         # First, split patients into train/val/test WITHOUT loading all data
         patient_ids = [d.name for d in patient_dirs]
         
-        # First split: 75% train, 25% temp
-        train_ids, temp_ids = train_test_split(
-            patient_ids, 
-            test_size=(val_split + test_split),
-            random_state=42
-        )
-        
-        # Second split: Split temp into val/test
-        val_ids, test_ids = train_test_split(
-            temp_ids,
-            test_size=test_split / (val_split + test_split),
-            random_state=42
-        )
+        # Handle edge cases for small datasets or zero splits
+        split_total = val_split + test_split
+        if len(patient_ids) < 2 or split_total <= 0:
+            train_ids = patient_ids
+            val_ids = []
+            test_ids = []
+        else:
+            # First split: train vs temp
+            train_ids, temp_ids = train_test_split(
+                patient_ids,
+                test_size=split_total,
+                random_state=42
+            )
+
+            # Second split: temp into val/test
+            if len(temp_ids) == 0:
+                val_ids = []
+                test_ids = []
+            elif val_split == 0:
+                val_ids = []
+                test_ids = temp_ids
+            elif test_split == 0:
+                val_ids = temp_ids
+                test_ids = []
+            else:
+                val_ids, test_ids = train_test_split(
+                    temp_ids,
+                    test_size=test_split / split_total,
+                    random_state=42
+                )
         
         logger.info(f"Train patients: {len(train_ids)}")
         logger.info(f"Val patients: {len(val_ids)}")
