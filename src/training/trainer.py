@@ -2,6 +2,8 @@
 import os
 import torch
 
+from src.utils.metrics import BraTSMetrics
+
 class SwinTrainer():
 
     def __init__(self, model, training_loader, val_loader, loss_fn, optimizer, scheduler, config):
@@ -40,18 +42,28 @@ class SwinTrainer():
         self.model.to(self.device)
 
         self.log_interval = config['training'].get('log_interval', 10)
-        self.checkpoint_dir = config['training'].get('checkpoint_dir', 'checkpoints')
+        self.checkpoint_dir = config['training'].get(
+            'checkpoint_dir', 'checkpoints')
 
-
-        self.best_acc = 0.0 # Best validation accuracy observed during training
+        self.best_metric = 0.0  # Best validation mean Dice observed during training
         # History of training/validation metrics for analysis and visualization
         self.history = {
             'train_loss': [],
             'train_acc': [],
             'val_loss': [],
             'val_acc': [],
+            'val_mean_dice': [],
+            'val_dice_wt': [],
+            'val_dice_tc': [],
+            'val_dice_et': [],
+            'val_hd95_wt': [],
+            'val_hd95_tc': [],
+            'val_hd95_et': [],
+            'val_mean_hd95': [],
             'learning_rate': []
         }
+
+        self.metrics = BraTSMetrics(device=self.device)
 
     def _warmup(self, epoch):
         '''
@@ -62,7 +74,8 @@ class SwinTrainer():
         '''
 
         if epoch < self.warmup_epochs:
-            warmup_factor = self.learning_rate * (epoch + 1) / self.warmup_epochs
+            warmup_factor = self.learning_rate * \
+                (epoch + 1) / self.warmup_epochs
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = warmup_factor
 
@@ -77,19 +90,19 @@ class SwinTrainer():
             Average loss and accuracy for the epoch.
         '''
 
-        self.model.train() # Set model to training mode
+        self.model.train()  # Set model to training mode
 
         train_loss = 0.0
         train_correct = 0
         train_total = 0
 
-        for _, (inputs,labels) in enumerate(self.training_loader):
+        for _, (inputs, labels) in enumerate(self.training_loader):
             # Move each modality in inputs to the target device; inputs is a list of tensors.
             inputs = [x.to(self.device) for x in inputs]
             labels = labels.to(self.device)
 
             # Forward pass
-            outputs = self.model(*inputs)
+            outputs = self.model(inputs)
             loss = self.loss_fn(outputs, labels)
 
             # Backward pass and optimization
@@ -108,7 +121,7 @@ class SwinTrainer():
         avg_acc = 100. * train_correct / train_total
 
         return avg_loss, avg_acc
-    
+
     def _validate_epoch(self):
         '''
         Iteration for one validation epoch.
@@ -116,20 +129,31 @@ class SwinTrainer():
             Average loss and accuracy for the epoch.
         '''
 
-        self.model.eval() # Set model to evaluation mode
+        self.model.eval()  # Set model to evaluation mode
 
         val_loss = 0.0
         val_correct = 0
         val_total = 0
+        metric_sums = {
+            'dice_wt': 0.0,
+            'dice_tc': 0.0,
+            'dice_et': 0.0,
+            'mean_dice': 0.0,
+            'hd95_wt': 0.0,
+            'hd95_tc': 0.0,
+            'hd95_et': 0.0,
+            'mean_hd95': 0.0,
+        }
+        metric_count = 0
 
-        with torch.no_grad(): # Disable gradient computation for validation
+        with torch.no_grad():  # Disable gradient computation for validation
             for inputs, labels in self.val_loader:
                 # Move inputs to device
                 inputs = [x.to(self.device) for x in inputs]
                 labels = labels.to(self.device)
 
                 # Forward pass
-                outputs = self.model(*inputs)
+                outputs = self.model(inputs)
                 loss = self.loss_fn(outputs, labels)
 
                 # Track metrics
@@ -139,11 +163,22 @@ class SwinTrainer():
                 val_total += labels.size(0)
                 val_correct += predicted.eq(labels).sum().item()
 
+                batch_metrics = self.metrics.compute_metrics(outputs, labels)
+                batch_size = labels.size(0)
+                for key in metric_sums:
+                    metric_sums[key] += batch_metrics[key] * batch_size
+                metric_count += batch_size
+
         # Calculate epoch metrics
         avg_loss = val_loss / len(self.val_loader)
         avg_acc = 100. * val_correct / val_total
 
-        return avg_loss, avg_acc
+        avg_metrics = {
+            key: (metric_sums[key] / metric_count if metric_count else 0.0)
+            for key in metric_sums
+        }
+
+        return avg_loss, avg_acc, avg_metrics
 
     def _save_checkpoint(self, epoch, is_best=False):
         '''
@@ -159,7 +194,7 @@ class SwinTrainer():
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict(),
-            'best_acc': self.best_acc,
+            'best_metric': self.best_metric,
             'history': self.history
         }
 
@@ -168,10 +203,12 @@ class SwinTrainer():
             f'checkpoint_epoch_{epoch}.pth'
         )
 
-        torch.save(checkpoint, checkpoint_path) # Save checkpoint for this epoch
+        # Save checkpoint for this epoch
+        torch.save(checkpoint, checkpoint_path)
 
         if is_best:
-            torch.save(checkpoint, os.path.join(self.checkpoint_dir, 'best_model.pth'))
+            torch.save(checkpoint, os.path.join(
+                self.checkpoint_dir, 'best_model.pth'))
 
     def train(self):
         '''
@@ -187,11 +224,11 @@ class SwinTrainer():
 
             # Train and validate one epoch
             train_loss, train_acc = self._train_epoch()
-            val_loss, val_acc = self._validate_epoch()
+            val_loss, val_acc, val_metrics = self._validate_epoch()
 
             # Step the learning rate scheduler after warmup epochs
             if epoch >= self.warmup_epochs:
-                self.scheduler.step() 
+                self.scheduler.step()
 
             # Log learning rate
             current_lr = self.optimizer.param_groups[0]['lr']
@@ -200,11 +237,19 @@ class SwinTrainer():
             self.history['train_acc'].append(train_acc)
             self.history['val_loss'].append(val_loss)
             self.history['val_acc'].append(val_acc)
+            self.history['val_mean_dice'].append(val_metrics['mean_dice'])
+            self.history['val_dice_wt'].append(val_metrics['dice_wt'])
+            self.history['val_dice_tc'].append(val_metrics['dice_tc'])
+            self.history['val_dice_et'].append(val_metrics['dice_et'])
+            self.history['val_hd95_wt'].append(val_metrics['hd95_wt'])
+            self.history['val_hd95_tc'].append(val_metrics['hd95_tc'])
+            self.history['val_hd95_et'].append(val_metrics['hd95_et'])
+            self.history['val_mean_hd95'].append(val_metrics['mean_hd95'])
             self.history['learning_rate'].append(current_lr)
 
-            is_best = val_acc > self.best_acc
+            is_best = val_metrics['mean_dice'] > self.best_metric
             if is_best:
-                self.best_acc = val_acc
+                self.best_metric = val_metrics['mean_dice']
 
             if (epoch + 1) % self.checkpoint_interval == 0 or is_best:
                 self._save_checkpoint(epoch, is_best=is_best)
@@ -216,7 +261,7 @@ class SwinTrainer():
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        self.best_acc = checkpoint['best_acc']
+        self.best_metric = checkpoint.get('best_metric', 0.0)
         self.history = checkpoint['history']
 
         return checkpoint['epoch']
