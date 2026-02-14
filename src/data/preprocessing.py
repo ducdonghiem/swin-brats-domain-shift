@@ -114,7 +114,18 @@ class BraTSPreprocessor:
 
         # Save mask as mask.npy inside patient mask dir
         mask_filename = str(patient_mask_dir / "mask.npy")
-        np.save(mask_filename, mask.astype(np.uint8))
+        mask = mask.astype(np.uint8)
+        valid_labels = {0, 1, 2, 3, 4}
+        present_labels = set(np.unique(mask).tolist())
+        if not present_labels.issubset(valid_labels):
+            raise ValueError(
+                f"{patient_id}: unexpected mask labels {sorted(present_labels)}; "
+                f"expected subset of {sorted(valid_labels)}"
+            )
+
+        # BraTS labels are typically {0,1,2,4}; remap 4 -> 3 for contiguous class IDs [0..3].
+        mask[mask == 4] = 3
+        np.save(mask_filename, mask)
     
     def run(self, train_split=0.75, val_split=0.15, test_split=0.10):
         """
