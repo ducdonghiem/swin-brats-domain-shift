@@ -4,7 +4,10 @@ training:
   learning_rate: 0.001
   checkpoint_dir: "checkpoints"
   log_interval: 10
+  batch_size: 1
+  num_workers: 0
 
 device: "cuda"  # or "cpu"
 
-# early stopping
+# TODO: Early stopping criteria
+early_stopping:
