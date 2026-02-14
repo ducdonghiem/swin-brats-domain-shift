@@ -5,32 +5,30 @@ from monai.losses import DiceFocalLoss
 class BraTSLoss(nn.Module):
     def __init__(self, device="cuda"):
         super(BraTSLoss, self).__init__()
-        # DiceFocalLoss combines:
-        # 1. Dice Loss: Good for global overlap and class imbalance.
-        # 2. Focal Loss: Forces the model to focus on "hard" pixels (like ET).
         self.main_loss = DiceFocalLoss(
-            softmax=True,            # Apply softmax to model logits
-            to_onehot_y=True,        # Convert (240,240,155) labels to 4-channel one-hot
-            include_background=True, # In training, we include background to stabilize CE/Focal
-            gamma=2.0,               # Focal loss focusing parameter (standard is 2.0)
-            lambda_dice=1.0,         # Weight for Dice component
-            lambda_focal=1.0         # Weight for Focal component
+            softmax=True,            
+            to_onehot_y=True,        
+            include_background=True, 
+            gamma=2.0,               
+            lambda_dice=1.0,         
+            lambda_focal=1.0         
         )
         self.device = device
 
     def forward(self, prediction, target):
         """
-        Args:
-            prediction: Raw logits from model (Batch, 4, 240, 240, 155)
-            target: Ground truth labels (Batch, 1, 240, 240, 155) or (Batch, 240, 240, 155)
+        prediction: (Batch, 4, 155, 240, 240)
+        target: (Batch, 155, 240, 240) with values {0, 1, 2, 4}
         """
-        # Ensure target has the channel dimension for MONAI (Batch, 1, H, W, D)
-        if len(target.shape) == 4:
-            target = target.unsqueeze(1)
+        # CRITICAL FIX: Remap label 4 to 3 so it matches the 4th channel of prediction
+        # We do this on a clone to avoid corrupting the original metadata
+        target_remapped = target.clone()
+        target_remapped[target == 4] = 3
+        
+        if len(target_remapped.shape) == 3:
+            target_remapped = target_remapped.unsqueeze(1)
+        elif len(target_remapped.shape) == 4:
+            # If batch dim is present but channel dim is missing
+            target_remapped = target_remapped.unsqueeze(1)
             
-        return self.main_loss(prediction, target)
-
-# Helper function for external use
-def compute_loss(prediction, target, device="cuda"):
-    criterion = BraTSLoss(device=device)
-    return criterion(prediction, target)
+        return self.main_loss(prediction, target_remapped)
