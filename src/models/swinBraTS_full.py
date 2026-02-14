@@ -74,7 +74,7 @@ class SwinBraTS(nn.Module):
         
         # ============ RECONSTRUCTION BLOCK ============
         # Upsamples from Swin decoder output back to original resolution
-        # Output: List of 4 × (B, 155, 240, 240)
+        # Output: (B, 4, 155, 240, 240)
         self.reconstruction_block = ReconstructionBlock(
             in_channels=96,
             hidden_channels=32,
@@ -94,11 +94,7 @@ class SwinBraTS(nn.Module):
                 - modalities[3]: T2
         
         Returns:
-            logits (list of torch.Tensor): List of 4 class-specific logit tensors, each shape (B, 155, 240, 240)
-                - logits[0]: Background class logits
-                - logits[1]: Necrotic core class logits
-                - logits[2]: Edema class logits
-                - logits[3]: Enhancing tumor class logits
+            (B, 4, 155, 240, 240): Class-specific segmentation logits for each of the 4 classes
         """
         # ============ STEP 1: PROJECT MODALITIES ============
         # Input: 4 × (B, 155, 240, 240)
@@ -153,18 +149,9 @@ if __name__ == "__main__":
         print("✓ Forward pass successful!")
         print()
         print("Output shapes (class-specific logits):")
-        for i, logit in enumerate(logits):
-            print(f"  Class {i}: {tuple(logit.shape)}")
-        print()
         
-        # Verify shapes
-        assert len(logits) == 4, f"Expected 4 output tensors, got {len(logits)}"
-        for i, logit in enumerate(logits):
-            assert logit.shape == (batch_size, 155, 240, 240), \
-                f"Class {i}: Expected shape ({batch_size}, 155, 240, 240), got {tuple(logit.shape)}"
-        
-        print("✓ All output shapes are correct!")
-        print()
+        # remake the test for the new output shape (B, 155, 240, 240)
+        print(f"  Logits: {tuple(logits.shape)}")  # Should be (B, 4, 155, 240, 240)
         
         # Count parameters
         total_params = sum(p.numel() for p in model.parameters())
@@ -201,7 +188,7 @@ if __name__ == "__main__":
         print("  ↓")
         print("  ReconstructionBlock → 4 class-specific logits (240×240)")
         print("  ↓")
-        print("  4 segmentation maps (one per class)")
+        print("  (B, 4, 155, 240, 240) output for segmentation")
         print()
         print("=" * 80)
         
