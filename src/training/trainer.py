@@ -41,6 +41,17 @@ class SwinTrainer():
         self.checkpoint_dir = config['training']['checkpoint_dir']
         self.checkpoint_interval = config['training']['checkpoint_interval']
 
+        # Mixed precision training
+        self.use_amp = config['training'].get('use_amp', True)
+        self.scaler = torch.cuda.amp.GradScaler() if self.use_amp and self.device == 'cuda' else None
+        
+        # Enable gradient checkpointing if model supports it (saves memory during training)
+        if config['training'].get('gradient_checkpointing', False):
+            if hasattr(self.model, 'enable_gradient_checkpointing'):
+                self.model.enable_gradient_checkpointing()
+            elif hasattr(self.model, 'gradient_checkpointing_enable'):
+                self.model.gradient_checkpointing_enable()
+
         self.best_metric = 0.0  # Best validation mean Dice observed during training
         
         # Early stopping setup
@@ -104,20 +115,30 @@ class SwinTrainer():
             inputs = [x.to(self.device) for x in inputs]
             labels = labels.to(self.device)
 
-            # Forward pass
-            outputs = self.model(inputs)
-            loss = self.loss_fn(outputs, labels)
+            # Forward pass with mixed precision
+            with torch.cuda.amp.autocast(enabled=self.use_amp):
+                outputs = self.model(inputs)
+                loss = self.loss_fn(outputs, labels)
 
             # Backward pass and optimization
             self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            
+            if self.scaler is not None:
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                loss.backward()
+                self.optimizer.step()
 
             # Track loss
             train_loss += loss.item()
 
             avg_loss = train_loss / max(1, len(train_loader))
             train_loader.set_postfix(loss=f"{avg_loss:.4f}")
+            
+            # Clear references to free memory
+            del outputs, loss
 
         # Calculate epoch metrics
         avg_loss = train_loss / len(self.training_loader)
@@ -153,14 +174,20 @@ class SwinTrainer():
                 inputs = [x.to(self.device) for x in inputs]
                 labels = labels.to(self.device)
 
-                # Forward pass
-                outputs = self.model(inputs)
-                loss = self.loss_fn(outputs, labels)
+                # Forward pass with mixed precision
+                with torch.cuda.amp.autocast(enabled=self.use_amp):
+                    outputs = self.model(inputs)
+                    loss = self.loss_fn(outputs, labels)
 
-                # Track metrics
+                # Track metrics - immediately move to CPU to save GPU memory
                 val_loss += loss.item()
-
-                batch_metrics = self.metrics.compute_metrics(outputs, labels)
+                
+                # Detach outputs and labels before computing metrics to free computation graph
+                outputs_detached = outputs.detach()
+                labels_detached = labels.detach()
+                
+                # Compute metrics
+                batch_metrics = self.metrics.compute_metrics(outputs_detached, labels_detached)
                 batch_size = labels.size(0)
                 for key in metric_sums:
                     metric_sums[key] += batch_metrics[key] * batch_size
@@ -169,6 +196,9 @@ class SwinTrainer():
                 avg_loss = val_loss / max(1, len(val_loader))
                 avg_mean_dice = metric_sums['mean_dice'] / max(1, metric_count)
                 val_loader.set_postfix(loss=f"{avg_loss:.4f}", mean_dice=f"{avg_mean_dice:.4f}")
+                
+                # Clear GPU memory after each batch - delete everything
+                del outputs, outputs_detached, labels_detached, loss, inputs, labels
 
         # Calculate epoch metrics
         avg_loss = val_loss / len(self.val_loader)
@@ -230,6 +260,9 @@ class SwinTrainer():
             'best_metric': self.best_metric,
             'history': self.history
         }
+        
+        if self.scaler is not None:
+            checkpoint['scaler_state_dict'] = self.scaler.state_dict()
 
         # Create checkpoint directory if it doesn't exist
         os.makedirs(self.checkpoint_dir, exist_ok=True)
@@ -297,6 +330,9 @@ class SwinTrainer():
                     'best_metric': self.best_metric,
                     'history': self.history
                 }
+                if self.scaler is not None:
+                    checkpoint['scaler_state_dict'] = self.scaler.state_dict()
+                    
                 os.makedirs(self.checkpoint_dir, exist_ok=True)
                 best_path = os.path.join(self.checkpoint_dir, 'best_model.pth')
                 torch.save(checkpoint, best_path)
@@ -321,6 +357,8 @@ class SwinTrainer():
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if self.scaler is not None and 'scaler_state_dict' in checkpoint:
+            self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
         self.best_metric = checkpoint.get('best_metric', 0.0)
         self.history = checkpoint['history']
 
@@ -361,8 +399,10 @@ class SwinTrainer():
                 inputs = [x.to(self.device) for x in inputs]
                 labels = labels.to(self.device)
                 
-                outputs = self.model(inputs)
-                loss = self.loss_fn(outputs, labels)
+                # Forward pass with mixed precision
+                with torch.cuda.amp.autocast(enabled=self.use_amp):
+                    outputs = self.model(inputs)
+                    loss = self.loss_fn(outputs, labels)
                 
                 test_loss += loss.item()
                 
@@ -375,6 +415,9 @@ class SwinTrainer():
                 avg_loss = test_loss / max(1, len(test_loader_iter))
                 avg_mean_dice = metric_sums['mean_dice'] / max(1, metric_count)
                 test_loader_iter.set_postfix(loss=f"{avg_loss:.4f}", mean_dice=f"{avg_mean_dice:.4f}")
+                
+                # Clear GPU memory
+                del outputs, loss, inputs, labels
         
         avg_loss = test_loss / len(test_loader)
         avg_metrics = {
