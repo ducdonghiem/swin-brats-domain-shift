@@ -9,14 +9,14 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.training.trainer import SwinTrainer
-from src.data.data_loader import MRIDataset, collate_modalities
+from src.data.data_loader import CenterCrop, MRIDataset, RandomCrop, collate_modalities
 from src.utils.losses import BraTSLoss
 from src.models.swinBraTS_full import SwinBraTS
 from src.utils.config import load_config
 
 if __name__ == "__main__":
     '''
-    Test example
+    Training Script
     '''
     train_config = load_config('configs/train_config.yml')
 
@@ -24,15 +24,19 @@ if __name__ == "__main__":
     train_dir = Path(train_config['data']['train_dir'])
     val_dir = Path(train_config['data']['val_dir'])
     test_dir = Path(train_config['data']['test_dir'])
-    modality_order = train_config['data']['modality_order']
+    modality_order = train_config['data']['modality_order'] # ensures we load the channels in a consistent order
+    crop_transform = RandomCrop(128)
+    center_crop_transform = CenterCrop(128)
 
     train_dataset = MRIDataset(
         data_dir=train_dir,
-        modalities=modality_order
+        modalities=modality_order,
+        transform=crop_transform
     )
     val_dataset = MRIDataset(
         data_dir=val_dir,
-        modalities=modality_order
+        modalities=modality_order,
+        transform=center_crop_transform
     )
     test_dataset = MRIDataset(
         data_dir=test_dir,
@@ -63,7 +67,7 @@ if __name__ == "__main__":
             pin_memory=pin_memory,
             collate_fn=collate_modalities
         )
-    
+
     test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
@@ -81,10 +85,10 @@ if __name__ == "__main__":
         window_size=train_config['model']['window_size'],
         patch_size=train_config['model']['patch_size']
     )
+
     loss = BraTSLoss(device=train_config['device'])
     optimizer = AdamW(model.parameters(),
         lr=train_config['training']['learning_rate'])
-
     scheduler = CosineAnnealingLR(
         optimizer, T_max=train_config['training']['epochs'])
 
@@ -98,13 +102,14 @@ if __name__ == "__main__":
         config=train_config
     )
 
+    # Train model and store history for analytics
     history = trainer.train()
 
     print("\n" + "="*50)
     print("Training complete!")
     print(f"Best validation Mean Dice: {trainer.best_metric:.4f}")
     print("="*50)
-    
+
     # Load best model and evaluate on test set
     best_checkpoint_path = Path(train_config['training']['checkpoint_dir']) / 'best_model.pth'
     test_metrics = None
@@ -114,7 +119,7 @@ if __name__ == "__main__":
         test_metrics = trainer.test(test_loader)
     else:
         print("\nWarning: No best model checkpoint found, skipping test evaluation")
-    
+
     # Save results
     results_dir = train_config['training']['results_dir']
     trainer.save_results(results_dir, test_metrics)
