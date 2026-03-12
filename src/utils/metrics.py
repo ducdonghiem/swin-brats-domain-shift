@@ -24,23 +24,39 @@ class BraTSMetrics:
         return regions
 
     @torch.no_grad()
-    def compute_metrics(self, logits, ground_truth):
+    def compute_metrics(self, logits, ground_truth, compute_hd95=False):
         """
-        logits: (B, 4, 155, 240, 240)
-        ground_truth: (B, 155, 240, 240)
+        logits: (B, 4, 155, 240, 240) - can be on CPU or GPU
+        ground_truth: (B, 155, 240, 240) - can be on CPU or GPU
+        compute_hd95: If False (default), skip HD95 computation entirely.
+            HD95 uses scipy.ndimage.distance_transform_edt which allocates ~6x
+            the input size in float64, plus does not release C-level memory
+            promptly between calls. On a full 3D volume (155x240x240) this
+            costs ~5 GB of CPU RAM per batch when summed over 3 regions.
+            Set to True only for final evaluation, not every training epoch.
+
+        NOTE: For memory efficiency during validation, callers should pass CPU
+        tensors. This avoids keeping large tensors on GPU alongside loss
+        intermediates.
         """
+        # Work on whichever device the tensors are already on; do NOT force to
+        # self.device (caller is responsible for placement).
+
         # 1. Prediction mapping: Argmax + Label Fix (0,1,2,3 -> 0,1,2,4)
         preds = torch.argmax(logits, dim=1).clone()
         preds[preds == 3] = 4
-        
+
         # 2. Get 3-channel binary regions
         p_regions = self._get_brats_regions(preds)
         g_regions = self._get_brats_regions(ground_truth)
 
-        # 3. Compute metrics per region to prevent indexing errors
+        # Free large intermediate tensors as soon as possible
+        del preds
+
+        # 3. Compute metrics per region
         results = {}
         region_names = ["wt", "tc", "et"]
-        
+
         dice_scores = []
         hd95_scores = []
 
@@ -55,19 +71,28 @@ class BraTSMetrics:
             dice_scores.append(d_val)
             results[f"dice_{name}"] = d_val
 
-            # HD95 for this region
-            try:
-                h = compute_hausdorff_distance(y_pred=p_reg, y=g_reg, spacing=(1, 1, 1), percentile=95)
-                h_val = float(torch.nanmean(h).cpu().item())
-            except Exception:
-                h_val = 0.0 # Standard fallback for empty predictions
-            
+            # HD95 — only compute when explicitly requested
+            if compute_hd95:
+                try:
+                    h = compute_hausdorff_distance(
+                        y_pred=p_reg, y=g_reg, spacing=(1, 1, 1), percentile=95
+                    )
+                    h_val = float(torch.nanmean(h).cpu().item())
+                except Exception:
+                    h_val = 0.0  # Standard fallback for empty predictions
+            else:
+                h_val = float('nan')  # Sentinel: not computed this epoch
+
             hd95_scores.append(h_val)
             results[f"hd95_{name}"] = h_val
 
+        del p_regions, g_regions
+
         # 4. Final averages
         results["mean_dice"] = float(np.mean(dice_scores))
-        results["mean_hd95"] = float(np.mean(hd95_scores))
+        # mean_hd95 is nan during training epochs — only meaningful when compute_hd95=True
+        valid_hd95 = [v for v in hd95_scores if not np.isnan(v)]
+        results["mean_hd95"] = float(np.mean(valid_hd95)) if valid_hd95 else float('nan')
 
         return results
 

@@ -3,13 +3,17 @@ training:
   warmup_epochs: 5
   learning_rate: 0.0001
   checkpoint_dir: "checkpoints"
-  checkpoint_interval: 20
-  log_interval: 10
+  checkpoint_interval: 30
+  log_interval: 20
   batch_size: 2  # Works with embed_dim=32, AMP, and gradient checkpointing
-  num_workers: 4
+  num_workers: 2
   results_dir: "results"
   use_amp: true  # Use automatic mixed precision to save memory
-  gradient_checkpointing: true  # Enable to trade compute for memory
+  gradient_checkpointing: false
+  # HD95 uses scipy distance transforms (~5 GB CPU RAM per val batch).
+  # Set to 0 to skip HD95 during training entirely (it still runs in test()).
+  # Set to N to compute HD95 every N epochs (e.g. 20 = every 20 epochs).
+  hd95_interval: 0
 
 device: "cuda"
 

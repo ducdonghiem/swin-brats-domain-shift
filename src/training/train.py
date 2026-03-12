@@ -81,12 +81,33 @@ if __name__ == "__main__":
         window_size=train_config['model']['window_size'],
         patch_size=train_config['model']['patch_size']
     )
+
+    # Print parameter count before training begins
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print("=" * 50)
+    print(f"Model: SwinBraTS")
+    print(f"  Total parameters:     {total_params:,}")
+    print(f"  Trainable parameters: {trainable_params:,}")
+    proj_params  = sum(p.numel() for p in model.projection_block.parameters())
+    swin_params  = sum(p.numel() for p in model.swin_backbone.parameters())
+    recon_params = sum(p.numel() for p in model.reconstruction_block.parameters())
+    print(f"  ProjectionBlock:      {proj_params:,}")
+    print(f"  SwinUNet backbone:    {swin_params:,}")
+    print(f"  ReconstructionBlock:  {recon_params:,}")
+    print("=" * 50)
+
     loss = BraTSLoss(device=train_config['device'])
     optimizer = AdamW(model.parameters(),
         lr=train_config['training']['learning_rate'])
 
+    # eta_min prevents LR from decaying all the way to 0, which causes the
+    # loss spike seen near the end of cosine annealing.
     scheduler = CosineAnnealingLR(
-        optimizer, T_max=train_config['training']['epochs'])
+        optimizer,
+        T_max=train_config['training']['epochs'],
+        eta_min=1e-6
+    )
 
     trainer = SwinTrainer(
         model=model,
@@ -104,6 +125,9 @@ if __name__ == "__main__":
     print("Training complete!")
     print(f"Best validation Mean Dice: {trainer.best_metric:.4f}")
     print("="*50)
+
+    # Save loss plot immediately after training
+    trainer.save_loss_plot(train_config['training']['results_dir'])
     
     # Load best model and evaluate on test set
     best_checkpoint_path = Path(train_config['training']['checkpoint_dir']) / 'best_model.pth'
