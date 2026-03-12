@@ -20,7 +20,7 @@ if __name__ == "__main__":
     '''
     train_config = load_config('configs/train_config.yml')
 
-    # === Data loading ===
+    # Data loading
     train_dir = Path(train_config['data']['train_dir'])
     val_dir = Path(train_config['data']['val_dir'])
     test_dir = Path(train_config['data']['test_dir'])
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         collate_fn=collate_modalities
     )
 
-    # === Hyperparameters and model setup ===
+    # Hyperparameters and model setup
     model = SwinBraTS(
         in_channels=train_config['model']['in_channels'],
         num_classes=train_config['model']['num_classes'],
@@ -82,11 +82,8 @@ if __name__ == "__main__":
         patch_size=train_config['model']['patch_size']
     )
 
-    # Print parameter count before training begins
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print("=" * 50)
-    print(f"Model: SwinBraTS")
     print(f"  Total parameters:     {total_params:,}")
     print(f"  Trainable parameters: {trainable_params:,}")
     proj_params  = sum(p.numel() for p in model.projection_block.parameters())
@@ -95,7 +92,6 @@ if __name__ == "__main__":
     print(f"  ProjectionBlock:      {proj_params:,}")
     print(f"  SwinUNet backbone:    {swin_params:,}")
     print(f"  ReconstructionBlock:  {recon_params:,}")
-    print("=" * 50)
 
     loss = BraTSLoss(device=train_config['device'])
     optimizer = AdamW(model.parameters(),
@@ -122,7 +118,6 @@ if __name__ == "__main__":
     history = trainer.train()
 
     print("\n" + "="*50)
-    print("Training complete!")
     print(f"Best validation Mean Dice: {trainer.best_metric:.4f}")
     print("="*50)
 

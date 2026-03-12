@@ -42,15 +42,14 @@ class SwinTrainer():
         self.checkpoint_interval = config['training']['checkpoint_interval']
 
         # HD95 is expensive (scipy float64 distance transforms, ~5 GB CPU RAM per batch).
-        # Compute it only every hd95_interval epochs during training, never every epoch.
-        # Set to 0 to disable entirely during training (computed in test() regardless).
+        # Hence compute it only every hd95_interval epochs during training, not every epoch.
         self.hd95_interval = config['training'].get('hd95_interval', 0)
 
         # Mixed precision training
         self.use_amp = config['training'].get('use_amp', True)
         self.scaler = torch.cuda.amp.GradScaler() if self.use_amp and self.device == 'cuda' else None
         
-        # Enable gradient checkpointing if configured (saves memory, trades compute)
+        # Enable gradient checkpointing
         if config['training'].get('gradient_checkpointing', False):
             if hasattr(self.model, 'enable_gradient_checkpointing'):
                 self.model.enable_gradient_checkpointing()
@@ -116,14 +115,7 @@ class SwinTrainer():
         return None
 
     def _train_epoch(self):
-        '''
-        Iteration for one training epoch. 
-
-        Returns:
-            Average loss for the epoch.
-        '''
-
-        self.model.train()  # Set model to training mode
+        self.model.train()
 
         train_loss = 0.0
 
@@ -133,7 +125,7 @@ class SwinTrainer():
             inputs = [x.to(self.device) for x in inputs]
             labels = labels.to(self.device)
 
-            # Zero gradients BEFORE forward pass to avoid accumulating stale gradients
+            # Zero gradients before forward pass to avoid accumulating stale gradients
             self.optimizer.zero_grad()
 
             # Forward pass with mixed precision
@@ -155,7 +147,6 @@ class SwinTrainer():
             avg_loss = train_loss / max(1, len(train_loader))
             train_loader.set_postfix(loss=f"{avg_loss:.4f}")
             
-            # Clear references to free memory
             del outputs, loss
 
         # Calculate epoch metrics
@@ -164,19 +155,9 @@ class SwinTrainer():
         return avg_loss
 
     def _validate_epoch(self, epoch=0):
-        '''
-        Iteration for one validation epoch.
-
-        Args:
-            epoch (int): Current epoch number, used to decide whether to compute HD95.
-
-        Returns:
-            Average loss and metrics for the epoch.
-        '''
-
         self.model.eval()
 
-        # Compute HD95 only every hd95_interval epochs (0 = never during training)
+        # Compute HD95 only every hd95_interval epochs
         compute_hd95 = (
             self.hd95_interval > 0 and
             (epoch + 1) % self.hd95_interval == 0
@@ -195,7 +176,7 @@ class SwinTrainer():
         }
         metric_count = 0
 
-        with torch.no_grad():  # Disable gradient computation for validation
+        with torch.no_grad(): 
             val_loader = tqdm(self.val_loader, desc="Validating", leave=False)
             for inputs, labels in val_loader:
                 # Move inputs to device
@@ -207,17 +188,14 @@ class SwinTrainer():
                     outputs = self.model(inputs)
                     loss = self.loss_fn(outputs, labels)
 
-                # Record loss immediately and free loss tensor
                 val_loss += loss.item()
                 del loss
 
-                # Move outputs and labels to CPU *before* metric computation.
-                # compute_metrics (especially HD95) allocates large temporaries;
-                # keeping everything on GPU simultaneously causes OOM.
+                # Move outputs and labels to CPU before metric computation.
                 outputs_cpu = outputs.detach().cpu()
                 labels_cpu = labels.detach().cpu()
 
-                # Free GPU tensors as early as possible
+                # Free GPU tensors
                 del outputs, inputs, labels
                 if self.device == 'cuda':
                     torch.cuda.empty_cache()
@@ -246,15 +224,6 @@ class SwinTrainer():
         return avg_loss, avg_metrics
 
     def _check_early_stopping(self, current_score):
-        '''
-        Check if early stopping criteria are met.
-        
-        Args:
-            current_score (float): Current validation metric score
-            
-        Returns:
-            bool: True if training should stop, False otherwise
-        '''
         if not self.early_stopping_enabled:
             return False
             
@@ -262,10 +231,9 @@ class SwinTrainer():
             self.early_stopping_best_score = current_score
             return False
             
-        # Check if there's improvement based on mode
         if self.early_stopping_mode == 'max':
             improved = current_score > (self.early_stopping_best_score + self.early_stopping_min_delta)
-        else:  # mode == 'min'
+        else:
             improved = current_score < (self.early_stopping_best_score - self.early_stopping_min_delta)
             
         if improved:
@@ -279,14 +247,6 @@ class SwinTrainer():
             return False
 
     def _save_checkpoint(self, epoch, is_best=False):
-        '''
-        Save model checkpoint for the current epoch.
-
-        Args:
-            epoch (int): Current epoch number
-            is_best (bool): Unused, kept for compatibility
-        '''
-
         checkpoint = {
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),
@@ -299,7 +259,6 @@ class SwinTrainer():
         if self.scaler is not None:
             checkpoint['scaler_state_dict'] = self.scaler.state_dict()
 
-        # Create checkpoint directory if it doesn't exist
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
         checkpoint_path = os.path.join(
@@ -307,17 +266,9 @@ class SwinTrainer():
             f'checkpoint_epoch_{epoch + 1}.pth'
         )
 
-        # Save checkpoint for this epoch
         torch.save(checkpoint, checkpoint_path)
 
     def train(self):
-        '''
-        Main training loop.
-
-        Returns:
-            History of training and validation metrics across epochs.
-        '''
-
         for epoch in range(self.epochs + self.warmup_epochs):
             print(f"\nEpoch {epoch + 1}/{self.epochs + self.warmup_epochs}")
             
@@ -350,8 +301,7 @@ class SwinTrainer():
             # Print epoch summary
             print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
             print(f"Val Mean Dice: {val_metrics['mean_dice']:.4f} | Val Dice WT: {val_metrics['dice_wt']:.4f} | Val Dice TC: {val_metrics['dice_tc']:.4f} | Val Dice ET: {val_metrics['dice_et']:.4f}")
-            # HD95 is only computed every hd95_interval epochs; show n/a otherwise
-            if not (val_metrics['mean_hd95'] != val_metrics['mean_hd95']):  # not nan
+            if not (val_metrics['mean_hd95'] != val_metrics['mean_hd95']):
                 print(f"Val Mean HD95: {val_metrics['mean_hd95']:.4f} | Val HD95 WT: {val_metrics['hd95_wt']:.4f} | Val HD95 TC: {val_metrics['hd95_tc']:.4f} | Val HD95 ET: {val_metrics['hd95_et']:.4f}")
             else:
                 print("Val HD95: n/a this epoch (computed every hd95_interval epochs)")
@@ -404,15 +354,6 @@ class SwinTrainer():
         return checkpoint['epoch']
 
     def test(self, test_loader):
-        '''
-        Evaluate model on test set.
-        
-        Args:
-            test_loader: DataLoader for test data
-            
-        Returns:
-            Dictionary of test metrics
-        '''
         print("\n" + "="*50)
         print("Testing on test set...")
         print("="*50)
@@ -477,13 +418,9 @@ class SwinTrainer():
         return avg_metrics
 
     def save_loss_plot(self, results_dir):
-        '''
-        Save train/val loss plot to results_dir.
-        Called automatically after training completes.
-        '''
         try:
             import matplotlib
-            matplotlib.use('Agg')  # Non-interactive backend — safe for HPC/SLURM
+            matplotlib.use('Agg')
             import matplotlib.pyplot as plt
         except ImportError:
             print("matplotlib not available — skipping loss plot.")
@@ -504,7 +441,6 @@ class SwinTrainer():
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-        # Annotate best val dice epoch
         if self.history['val_mean_dice']:
             best_epoch = int(max(range(len(self.history['val_mean_dice'])),
                                  key=lambda i: self.history['val_mean_dice'][i])) + 1
@@ -522,18 +458,10 @@ class SwinTrainer():
         return plot_path
 
     def save_results(self, results_dir, test_metrics=None):
-        '''
-        Save training results to a file.
-        
-        Args:
-            results_dir: Directory to save results
-            test_metrics: Optional test metrics dictionary
-        '''
         import json
         from datetime import datetime
 
         def _safe_float(v):
-            '''Convert float to JSON-safe value: replace nan/inf with null.'''
             import math
             if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
                 return None
