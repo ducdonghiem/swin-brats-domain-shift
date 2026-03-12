@@ -2,7 +2,7 @@ import os
 import torch
 from tqdm import tqdm
 
-from src.utils.metrics import BraTSMetrics
+from utils import BraTSMetrics
 
 class SwinTrainer():
 
@@ -43,8 +43,9 @@ class SwinTrainer():
 
         # Mixed precision training
         self.use_amp = config['training'].get('use_amp', True)
-        self.scaler = torch.cuda.amp.GradScaler() if self.use_amp and self.device == 'cuda' else None
-        
+        self.scaler = torch.cuda.amp.GradScaler(
+        ) if self.use_amp and self.device == 'cuda' else None
+
         # Enable gradient checkpointing if model supports it (saves memory during training)
         if config['training'].get('gradient_checkpointing', False):
             if hasattr(self.model, 'enable_gradient_checkpointing'):
@@ -53,16 +54,21 @@ class SwinTrainer():
                 self.model.gradient_checkpointing_enable()
 
         self.best_metric = 0.0  # Best validation mean Dice observed during training
-        
+
         # Early stopping setup
-        self.early_stopping_enabled = config.get('early_stopping', {}).get('enabled', False)
-        self.early_stopping_patience = config.get('early_stopping', {}).get('patience', 15)
-        self.early_stopping_min_delta = config.get('early_stopping', {}).get('min_delta', 0.001)
-        self.early_stopping_metric = config.get('early_stopping', {}).get('metric', 'val_mean_dice')
-        self.early_stopping_mode = config.get('early_stopping', {}).get('mode', 'max')
+        self.early_stopping_enabled = config.get(
+            'early_stopping', {}).get('enabled', False)
+        self.early_stopping_patience = config.get(
+            'early_stopping', {}).get('patience', 15)
+        self.early_stopping_min_delta = config.get(
+            'early_stopping', {}).get('min_delta', 0.001)
+        self.early_stopping_metric = config.get(
+            'early_stopping', {}).get('metric', 'val_mean_dice')
+        self.early_stopping_mode = config.get(
+            'early_stopping', {}).get('mode', 'max')
         self.early_stopping_counter = 0
         self.early_stopping_best_score = None
-        
+
         # History of training/validation metrics for analysis and visualization
         self.history = {
             'train_loss': [],
@@ -122,7 +128,7 @@ class SwinTrainer():
 
             # Backward pass and optimization
             self.optimizer.zero_grad()
-            
+
             if self.scaler is not None:
                 self.scaler.scale(loss).backward()
                 self.scaler.step(self.optimizer)
@@ -136,7 +142,7 @@ class SwinTrainer():
 
             avg_loss = train_loss / max(1, len(train_loader))
             train_loader.set_postfix(loss=f"{avg_loss:.4f}")
-            
+
             # Clear references to free memory
             del outputs, loss
 
