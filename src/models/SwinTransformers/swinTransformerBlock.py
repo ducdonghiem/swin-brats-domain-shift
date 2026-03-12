@@ -1,15 +1,8 @@
 import torch
 import torch.nn as nn
-import numpy as np
-try:
-    from window_attention import WindowAttention
-    from window_utils import window_partition, window_reverse
-    from mlp import MLP
-except ImportError:
-    from .window_attention import WindowAttention
-    from .window_utils import window_partition, window_reverse
-    from .mlp import MLP
-
+from .mlp import MLP
+from .window_attention import WindowAttention
+from .window_utils import window_partition, window_reverse
 
 class SwinTransformerBlock(nn.Module):
     """

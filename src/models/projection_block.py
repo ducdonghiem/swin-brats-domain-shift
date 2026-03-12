@@ -17,17 +17,17 @@ class ModalityCNN(nn.Module):
         self.relu = nn.ReLU(inplace=True)
     
     def forward(self, x):
-        # Conv 11×11: 240×240 → 230×230 (captures large-scale features)
+        # Conv 11×11
         x = self.conv_11(x)
         x = self.bn_11(x)
         x = self.relu(x)
         
-        # Conv 5×5: 230×230 → 226×226 (captures medium-scale features)
+        # Conv 5×5
         x = self.conv_5(x)
         x = self.bn_5(x)
         x = self.relu(x)
         
-        # Conv 3×3: 226×226 → 224×224 (captures fine-scale features, edges)
+        # Conv 3×3
         x = self.conv_3(x)
         x = self.bn_3(x)
         x = self.relu(x)
@@ -40,13 +40,13 @@ class ProjectionBlock(nn.Module):
         super(ProjectionBlock, self).__init__()
         self.num_modalities = num_modalities
         
-        # Separate CNN instance for each modality (no weight sharing)
+        # Separate CNN instance for each modality
         self.modality_cnns = nn.ModuleList([
             ModalityCNN(in_channels=in_channels, hidden_channels=hidden_channels)
             for _ in range(num_modalities)
         ])
         
-        # Fusion: Concatenate all modalities (num_modalities * hidden_channels) → out_channels
+        # Fusion: Concatenate all modalities 
         self.fusion_conv = nn.Conv2d(
             num_modalities * hidden_channels,
             out_channels,
@@ -64,10 +64,9 @@ class ProjectionBlock(nn.Module):
             feat = self.modality_cnns[modality_idx](mod)
             processed.append(feat)
         
-        # Concatenate all modality features: (B, hidden_channels, 224, 224) × 4 → (B, 4*hidden_channels, 224, 224)
+        # Concatenate all modality features
         concatenated = torch.cat(processed, dim=1)
         
-        # Reduces from (4 × 8 = 32) channels → 3 channels (RGB-like representation)
         fused = self.fusion_conv(concatenated)
         fused = self.fusion_bn(fused)
         fused = self.relu(fused)

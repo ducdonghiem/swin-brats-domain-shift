@@ -24,7 +24,7 @@ class SkipConnection(nn.Module):
         
         total_in = in_channels_encoder + in_channels_decoder
         
-        # 1x1 conv to reduce concatenated channels -> out_channels
+        # 1x1 conv to reduce concatenated channels to out_channels
         self.conv1 = nn.Conv2d(total_in, out_channels, kernel_size=1, padding=0, bias=True)
         
         # LayerNorm over channels

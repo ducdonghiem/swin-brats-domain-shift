@@ -1,10 +1,6 @@
 import torch
 import torch.nn as nn
-try:
-    from SwinTransformers.swinTransformerBlock import SwinTransformerBlock
-except ImportError:
-    from .SwinTransformers.swinTransformerBlock import SwinTransformerBlock
-
+from .SwinTransformers import SwinTransformerBlock
 
 class PatchExpanding(nn.Module):
     """
@@ -33,16 +29,14 @@ class PatchExpanding(nn.Module):
         B, L, C = x.shape
         assert L == H * W, "input feature has wrong size"
         
-        x = self.expand(x)  # (B, H*W, 2*C)
+        x = self.expand(x)
         
         x = x.view(B, H, W, 2 * C)
         
-        # Rearrange to increase spatial resolution
-        # Split channels and rearrange into 2x2 spatial pattern
         x = x.view(B, H, W, 2, 2, C // 2)
-        x = x.permute(0, 1, 3, 2, 4, 5).contiguous()  # (B, H, 2, W, 2, C/2)
-        x = x.view(B, H * 2, W * 2, C // 2)  # (B, 2H, 2W, C/2)
-        x = x.view(B, -1, C // 2)  # (B, 2H*2W, C/2)
+        x = x.permute(0, 1, 3, 2, 4, 5).contiguous()
+        x = x.view(B, H * 2, W * 2, C // 2)
+        x = x.view(B, -1, C // 2)
         
         x = self.norm(x)
         
@@ -78,22 +72,22 @@ class FinalPatchExpanding(nn.Module):
         B, L, C = x.shape
         assert L == H * W, "input feature has wrong size"
         
-        x = self.expand(x)  # (B, H*W, 16*C)
+        x = self.expand(x) 
         
         x = x.view(B, H, W, 16 * C)
         
         # Rearrange to increase spatial resolution by 4x
         # Split into 4x4 spatial pattern
         x = x.view(B, H, W, 4, 4, C)
-        x = x.permute(0, 1, 3, 2, 4, 5).contiguous()  # (B, H, 4, W, 4, C)
-        x = x.view(B, H * 4, W * 4, C)  # (B, 4H, 4W, C)
-        x = x.view(B, -1, C)  # (B, 4H*4W, C)
+        x = x.permute(0, 1, 3, 2, 4, 5).contiguous()
+        x = x.view(B, H * 4, W * 4, C)
+        x = x.view(B, -1, C)
         
         x = self.norm(x)
         
         # Reshape to (B, C, H, W) format
-        x = x.view(B, H * 4, W * 4, C)  # (B, 4H, 4W, C)
-        x = x.permute(0, 3, 1, 2).contiguous()  # (B, C, 4H, 4W)
+        x = x.view(B, H * 4, W * 4, C)
+        x = x.permute(0, 3, 1, 2).contiguous()
         
         return x
 
@@ -185,7 +179,7 @@ class SwinDecoder(nn.Module):
         self.num_stages = 3
         self.window_size = window_size
         
-        # Stochastic depth - linearly decreasing drop path rate
+        # Stochastic depth
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, 6)][::-1]  # Reverse for decoder
         
         # Stage 1: 7x7x768 -> 14x14x384
@@ -249,7 +243,7 @@ class SwinDecoder(nn.Module):
         Returns:
             x: Output feature, tensor size (B, 96, 224, 224)
         """
-        # Reverse skip connections to match decoder order
+        # Reverse skip connections
         # Encoder: stage1(56x56x96), stage2(28x28x192), stage3(14x14x384)
         # Decoder needs: stage3(14x14x384), stage2(28x28x192), stage1(56x56x96)
         skip_connections = skip_connections[::-1]  # Reverse
@@ -295,13 +289,10 @@ class SwinDecoder(nn.Module):
 
 
 if __name__ == "__main__":
-    # Test the decoder
     batch_size = 2
     
-    # Simulate bottleneck output
     bottleneck_output = torch.randn(batch_size, 7 * 7, 768)
     
-    # Simulate skip connections from encoder
     skip_connections = [
         torch.randn(batch_size, 56 * 56, 96),   # Stage 1
         torch.randn(batch_size, 28 * 28, 192),  # Stage 2
@@ -311,9 +302,6 @@ if __name__ == "__main__":
     
     decoder = SwinDecoder()
     
-    print("=" * 60)
-    print("Testing Swin Decoder")
-    print("=" * 60)
     print(f"Bottleneck input shape: {bottleneck_output.shape} (7x7x768)")
     print()
     print("Skip connections:")
@@ -326,10 +314,8 @@ if __name__ == "__main__":
     print(f"Decoder output shape: {output.shape}")
     print(f"Expected shape: (B, 96, 224, 224)")
     assert output.shape == (batch_size, 96, 224, 224), f"Wrong output shape: {output.shape}"
-    print("✓ Output shape is correct!")
     print(f"Output statistics - Mean: {output.mean().item():.4f}, Std: {output.std().item():.4f}")
     
     total_params = sum(p.numel() for p in decoder.parameters())
     print()
     print(f"Total parameters: {total_params:,}")
-    print("=" * 60)

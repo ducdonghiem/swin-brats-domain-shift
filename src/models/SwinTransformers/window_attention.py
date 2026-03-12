@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import numpy as np
-
 
 class WindowAttention(nn.Module):
     """
@@ -63,7 +61,7 @@ class WindowAttention(nn.Module):
         
         # Generate Q, K, V
         qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+        q, k, v = qkv[0], qkv[1], qkv[2]
         
         # Scale query
         q = q * self.scale
@@ -78,7 +76,7 @@ class WindowAttention(nn.Module):
         relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
         attn = attn + relative_position_bias.unsqueeze(0)
         
-        # Apply mask if provided (for shifted window attention)
+        # Apply mask
         if mask is not None:
             nW = mask.shape[0]
             attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)

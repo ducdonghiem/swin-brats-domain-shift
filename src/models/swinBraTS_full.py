@@ -1,34 +1,13 @@
 import torch
 import torch.nn as nn
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
-
-try:
-    from projection_block import ProjectionBlock
-    from swinUNet import SwinUNet
-    from reconstruction_block import ReconstructionBlock
-except ImportError:
-    from .projection_block import ProjectionBlock
-    from .swinUNet import SwinUNet
-    from .reconstruction_block import ReconstructionBlock
+from .projection_block import ProjectionBlock
+from .swinUNet import SwinUNet
+from .reconstruction_block import ReconstructionBlock
 
 
 class SwinBraTS(nn.Module):
     """
     Complete end-to-end SwinBraTS model for brain tumor segmentation.
-    
-    Pipeline:
-        Input: 4 × (B, 155, 240, 240) [FLAIR, T1, T1ce, T2]
-            ↓
-        ProjectionBlock: Fuse 4 modalities → (B, 3, 224, 224)
-            ↓
-        SwinUNet Encoder/Decoder: Extract features → (B, 96, 224, 224)
-            ↓
-        ReconstructionBlock: Upsample to full resolution → 4 × (B, 155, 240, 240)
-            ↓
-        Output: 4 class-specific segmentation logits
     
     Args:
         in_channels (int): Input channels per modality. Default: 155
@@ -52,7 +31,7 @@ class SwinBraTS(nn.Module):
         self.num_classes = num_classes
         self.embed_dim = embed_dim
         
-        # ============ PROJECTION BLOCK ============
+        # projection block
         # Fuses 4 MRI modalities (240×240 each) into 3-channel representation (224×224)
         self.projection_block = ProjectionBlock(
             in_channels=in_channels,
@@ -61,7 +40,7 @@ class SwinBraTS(nn.Module):
             num_modalities=4
         )
         
-        # ============ SWIN BACKBONE ============
+        # SwinUNet backbone
         # Processes fused features through encoder-decoder with skip connections
         # Output: (B, 96, 224, 224)
         self.swin_backbone = SwinUNet(
@@ -72,7 +51,7 @@ class SwinBraTS(nn.Module):
             patch_size=patch_size
         )
         
-        # ============ RECONSTRUCTION BLOCK ============
+        # reconstruction block
         # Upsamples from Swin decoder output back to original resolution
         # Output: (B, 4, 155, 240, 240)
         self.reconstruction_block = ReconstructionBlock(
@@ -96,31 +75,14 @@ class SwinBraTS(nn.Module):
         Returns:
             (B, 4, 155, 240, 240): Class-specific segmentation logits for each of the 4 classes
         """
-        # ============ STEP 1: PROJECT MODALITIES ============
-        # Input: 4 × (B, 155, 240, 240)
-        # Output: (B, 3, 224, 224)
         fused = self.projection_block(modalities)
-        
-        # ============ STEP 2: SWIN BACKBONE ============
-        # Input: (B, 3, 224, 224)
-        # Output: (B, 96, 224, 224)
         features = self.swin_backbone(fused)
-        
-        # ============ STEP 3: RECONSTRUCT ============
-        # Input: (B, 96, 224, 224)
-        # Output: List of 4 × (B, 155, 240, 240)
         logits = self.reconstruction_block(features)
         
         return logits
 
 
 if __name__ == "__main__":
-    print("=" * 80)
-    print("Testing Complete SwinBraTS End-to-End Model")
-    print("=" * 80)
-    print()
-    
-    # Create model
     model = SwinBraTS(
         in_channels=155,
         num_classes=4,
@@ -129,7 +91,7 @@ if __name__ == "__main__":
         patch_size=4
     )
     
-    # Create dummy input: batch_size=2, 4 modalities, 240×240 each
+    # Create dummy input
     batch_size = 2
     modalities = [
         torch.randn(batch_size, 155, 240, 240),  # FLAIR
@@ -146,8 +108,6 @@ if __name__ == "__main__":
     # Forward pass
     try:
         logits = model(modalities)
-        print("✓ Forward pass successful!")
-        print()
         print("Output shapes (class-specific logits):")
         
         # remake the test for the new output shape (B, 155, 240, 240)
@@ -172,25 +132,6 @@ if __name__ == "__main__":
         print(f"  SwinUNet Backbone:   {swin_params:,}")
         print(f"  ReconstructionBlock: {recon_params:,}")
         print()
-        
-        print("=" * 80)
-        print("✓ SwinBraTS model architecture verified successfully!")
-        print("=" * 80)
-        print()
-        print("Pipeline Summary:")
-        print("  4 MRI modalities (240×240)")
-        print("  ↓")
-        print("  ProjectionBlock → Fused representation (3-channel, 224×224)")
-        print("  ↓")
-        print("  SwinUNet Encoder → Feature extraction with skip connections")
-        print("  ↓")
-        print("  SwinUNet Decoder → Upsampling with skip connections")
-        print("  ↓")
-        print("  ReconstructionBlock → 4 class-specific logits (240×240)")
-        print("  ↓")
-        print("  (B, 4, 155, 240, 240) output for segmentation")
-        print()
-        print("=" * 80)
         
     except Exception as e:
         print(f"✗ Error during forward pass: {e}")

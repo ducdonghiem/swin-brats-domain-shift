@@ -2,7 +2,7 @@ import os
 import torch
 from tqdm import tqdm
 
-from src.utils.metrics import BraTSMetrics
+from utils import BraTSMetrics
 
 class SwinTrainer():
 
@@ -70,16 +70,21 @@ class SwinTrainer():
                           "supported checkpointing interface. Checkpointing NOT active.")
 
         self.best_metric = 0.0  # Best validation mean Dice observed during training
-        
+
         # Early stopping setup
-        self.early_stopping_enabled = config.get('early_stopping', {}).get('enabled', False)
-        self.early_stopping_patience = config.get('early_stopping', {}).get('patience', 15)
-        self.early_stopping_min_delta = config.get('early_stopping', {}).get('min_delta', 0.001)
-        self.early_stopping_metric = config.get('early_stopping', {}).get('metric', 'val_mean_dice')
-        self.early_stopping_mode = config.get('early_stopping', {}).get('mode', 'max')
+        self.early_stopping_enabled = config.get(
+            'early_stopping', {}).get('enabled', False)
+        self.early_stopping_patience = config.get(
+            'early_stopping', {}).get('patience', 15)
+        self.early_stopping_min_delta = config.get(
+            'early_stopping', {}).get('min_delta', 0.001)
+        self.early_stopping_metric = config.get(
+            'early_stopping', {}).get('metric', 'val_mean_dice')
+        self.early_stopping_mode = config.get(
+            'early_stopping', {}).get('mode', 'max')
         self.early_stopping_counter = 0
         self.early_stopping_best_score = None
-        
+
         # History of training/validation metrics for analysis and visualization
         self.history = {
             'train_loss': [],
@@ -272,7 +277,6 @@ class SwinTrainer():
         for epoch in range(self.epochs + self.warmup_epochs):
             print(f"\nEpoch {epoch + 1}/{self.epochs + self.warmup_epochs}")
             
-            # Apply learning rate warmup if needed
             _warmup_lr = self._warmup(epoch)
 
             # Train and validate one epoch
@@ -298,7 +302,6 @@ class SwinTrainer():
             self.history['val_mean_hd95'].append(val_metrics['mean_hd95'])
             self.history['learning_rate'].append(current_lr)
 
-            # Print epoch summary
             print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
             print(f"Val Mean Dice: {val_metrics['mean_dice']:.4f} | Val Dice WT: {val_metrics['dice_wt']:.4f} | Val Dice TC: {val_metrics['dice_tc']:.4f} | Val Dice ET: {val_metrics['dice_et']:.4f}")
             if not (val_metrics['mean_hd95'] != val_metrics['mean_hd95']):
@@ -310,7 +313,7 @@ class SwinTrainer():
             is_best = val_metrics['mean_dice'] > self.best_metric
             if is_best:
                 self.best_metric = val_metrics['mean_dice']
-                # Save best model immediately
+                # Save best model
                 checkpoint = {
                     'epoch': epoch,
                     'model_state_dict': self.model.state_dict(),
@@ -354,6 +357,15 @@ class SwinTrainer():
         return checkpoint['epoch']
 
     def test(self, test_loader):
+        '''
+        Evaluate model on test set.
+        
+        Args:
+            test_loader: DataLoader for test data
+            
+        Returns:
+            Dictionary of test metrics
+        '''
         print("\n" + "="*50)
         print("Testing on test set...")
         print("="*50)
@@ -407,13 +419,10 @@ class SwinTrainer():
             for key in metric_sums
         }
         
-        print("\n" + "="*50)
-        print("TEST RESULTS")
-        print("="*50)
+        print("Test Results")
         print(f"Test Loss: {avg_loss:.4f}")
         print(f"Test Mean Dice: {avg_metrics['mean_dice']:.4f} | Test Dice WT: {avg_metrics['dice_wt']:.4f} | Test Dice TC: {avg_metrics['dice_tc']:.4f} | Test Dice ET: {avg_metrics['dice_et']:.4f}")
         print(f"Test Mean HD95: {avg_metrics['mean_hd95']:.4f} | Test HD95 WT: {avg_metrics['hd95_wt']:.4f} | Test HD95 TC: {avg_metrics['hd95_tc']:.4f} | Test HD95 ET: {avg_metrics['hd95_et']:.4f}")
-        print("="*50)
         
         return avg_metrics
 

@@ -120,7 +120,6 @@ def collate_modalities(batch):
 
 
 if __name__ == "__main__":
-    # Example usage
     split_dir = Path("src/data/processed/train")
 
     dataset = MRIDataset(data_dir=split_dir)

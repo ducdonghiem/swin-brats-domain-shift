@@ -31,3 +31,6 @@ venv/
 src/models/SwinTransformers/__pycache__/
 src/models/SwinTransformers/test_swin_block.py
 src/models/SwinBraTS.py
+
+# --- IDE ---
+.vscode/

@@ -1,16 +1,10 @@
 import torch
 import torch.nn as nn
-try:
-    from SwinTransformers.swinTransformerBlock import SwinTransformerBlock
-except ImportError:
-    from .SwinTransformers.swinTransformerBlock import SwinTransformerBlock
-
+from .SwinTransformers import SwinTransformerBlock
 
 class Bottleneck(nn.Module):
     """
     Bottleneck layer with 2 successive Swin Transformer blocks.
-    
-    Operates at the lowest resolution: 7x7, C=768, num_heads=24
     
     Args:
         dim (int): Number of input channels. Default: 768
@@ -58,21 +52,12 @@ class Bottleneck(nn.Module):
         ])
     
     def forward(self, x, H, W):
-        """
-        Args:
-            x: Input feature, tensor size (B, H*W, C) where H=7, W=7, C=768
-            H, W: Spatial resolution of the input feature (7, 7)
-        
-        Returns:
-            x: Output feature, tensor size (B, H*W, C)
-        """
         for block in self.blocks:
             x = block(x, H, W)
         return x
 
 
 if __name__ == "__main__":
-    # Test the bottleneck
     batch_size = 2
     H, W = 7, 7
     C = 768
@@ -81,9 +66,6 @@ if __name__ == "__main__":
     
     bottleneck = Bottleneck(dim=C, num_heads=24, window_size=7)
     
-    print("=" * 60)
-    print("Testing Bottleneck")
-    print("=" * 60)
     print(f"Input shape: {x.shape}")
     print(f"Input resolution: {H}x{W}, channels: {C}")
     print(f"Number of heads: 24")
@@ -101,4 +83,3 @@ if __name__ == "__main__":
     print()
     print(f"Total parameters: {total_params:,}")
     print(f"Trainable parameters: {trainable_params:,}")
-    print("=" * 60)

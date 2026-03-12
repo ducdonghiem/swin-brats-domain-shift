@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
-try:
-    from SwinTransformers.swinTransformerBlock import SwinTransformerBlock
-except ImportError:
-    from .SwinTransformers.swinTransformerBlock import SwinTransformerBlock
+from .SwinTransformers import SwinTransformerBlock
 
 
 class PatchPartition(nn.Module):
@@ -198,7 +195,7 @@ class SwinEncoder(nn.Module):
         # Linear projection to increase channels: 48 -> 96
         self.linear_proj = nn.Linear(embed_dim, 96)
         
-        # Stochastic depth - linearly increasing drop path rate
+        # Stochastic depth
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, 6)]  # 6 blocks total (2 per stage)
         
         # Stage 1: 56x56, C=96, heads=3
@@ -255,10 +252,10 @@ class SwinEncoder(nn.Module):
         skip_connections = []
         output_dims = []
         
-        # Patch Partition: (B, 3, 224, 224) -> (B, 56*56, 48)
+        # Patch Partition
         x, H, W = self.patch_partition(x)  # (B, 3136, 48), H=56, W=56
         
-        # Linear projection: 48 -> 96
+        # Linear projection
         x = self.linear_proj(x)  # (B, 3136, 96)
         
         # Stage 1: 56x56x96
@@ -286,16 +283,12 @@ class SwinEncoder(nn.Module):
 
 
 if __name__ == "__main__":
-    # Test the encoder
     batch_size = 2
     
     x = torch.randn(batch_size, 3, 224, 224)
     
     encoder = SwinEncoder(in_channels=3)
     
-    print("=" * 60)
-    print("Testing Swin Encoder")
-    print("=" * 60)
     print(f"Input shape: {x.shape}")
     print()
     

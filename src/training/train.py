@@ -1,18 +1,12 @@
-import sys
 from pathlib import Path
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim import AdamW
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from src.training.trainer import SwinTrainer
-from src.data.data_loader import MRIDataset, collate_modalities
-from src.utils.losses import BraTSLoss
-from src.models.swinBraTS_full import SwinBraTS
-from src.utils.config import load_config
+from .trainer import SwinTrainer
+from data import MRIDataset, collate_modalities
+from utils import BraTSLoss, load_config
+from models import SwinBraTS
 
 if __name__ == "__main__":
     '''
