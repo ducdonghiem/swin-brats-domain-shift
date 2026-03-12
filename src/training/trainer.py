@@ -47,16 +47,9 @@ class SwinTrainer():
 
         # Mixed precision training
         self.use_amp = config['training'].get('use_amp', True)
-<<<<<<< fix-path-imports
-        self.scaler = torch.cuda.amp.GradScaler(
-        ) if self.use_amp and self.device == 'cuda' else None
-
-        # Enable gradient checkpointing if model supports it (saves memory during training)
-=======
         self.scaler = torch.cuda.amp.GradScaler() if self.use_amp and self.device == 'cuda' else None
         
         # Enable gradient checkpointing
->>>>>>> main
         if config['training'].get('gradient_checkpointing', False):
             if hasattr(self.model, 'enable_gradient_checkpointing'):
                 self.model.enable_gradient_checkpointing()
@@ -144,14 +137,7 @@ class SwinTrainer():
             with torch.cuda.amp.autocast(enabled=self.use_amp):
                 outputs = self.model(inputs)
                 loss = self.loss_fn(outputs, labels)
-<<<<<<< fix-path-imports
-
-            # Backward pass and optimization
-            self.optimizer.zero_grad()
-
-=======
             
->>>>>>> main
             if self.scaler is not None:
                 self.scaler.scale(loss).backward()
                 self.scaler.step(self.optimizer)
@@ -165,12 +151,7 @@ class SwinTrainer():
 
             avg_loss = train_loss / max(1, len(train_loader))
             train_loader.set_postfix(loss=f"{avg_loss:.4f}")
-<<<<<<< fix-path-imports
-
-            # Clear references to free memory
-=======
             
->>>>>>> main
             del outputs, loss
 
         # Calculate epoch metrics
@@ -376,7 +357,6 @@ class SwinTrainer():
         return checkpoint['epoch']
 
     def test(self, test_loader):
-<<<<<<< fix-path-imports
         '''
         Evaluate model on test set.
         
@@ -386,12 +366,10 @@ class SwinTrainer():
         Returns:
             Dictionary of test metrics
         '''
-=======
         print("\n" + "="*50)
         print("Testing on test set...")
         print("="*50)
         
->>>>>>> main
         self.model.eval()
         
         test_loss = 0.0
