@@ -286,7 +286,6 @@ class SwinTrainer():
         for epoch in range(self.epochs + self.warmup_epochs):
             print(f"\nEpoch {epoch + 1}/{self.epochs + self.warmup_epochs}")
             
-            # Apply learning rate warmup if needed
             _warmup_lr = self._warmup(epoch)
 
             # Train and validate one epoch
@@ -312,7 +311,6 @@ class SwinTrainer():
             self.history['val_mean_hd95'].append(val_metrics['mean_hd95'])
             self.history['learning_rate'].append(current_lr)
 
-            # Print epoch summary
             print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
             print(f"Val Mean Dice: {val_metrics['mean_dice']:.4f} | Val Dice WT: {val_metrics['dice_wt']:.4f} | Val Dice TC: {val_metrics['dice_tc']:.4f} | Val Dice ET: {val_metrics['dice_et']:.4f}")
             print(f"Val Mean HD95: {val_metrics['mean_hd95']:.4f} | Val HD95 WT: {val_metrics['hd95_wt']:.4f} | Val HD95 TC: {val_metrics['hd95_tc']:.4f} | Val HD95 ET: {val_metrics['hd95_et']:.4f}")
@@ -321,7 +319,7 @@ class SwinTrainer():
             is_best = val_metrics['mean_dice'] > self.best_metric
             if is_best:
                 self.best_metric = val_metrics['mean_dice']
-                # Save best model immediately
+                # Save best model
                 checkpoint = {
                     'epoch': epoch,
                     'model_state_dict': self.model.state_dict(),
@@ -374,10 +372,6 @@ class SwinTrainer():
         Returns:
             Dictionary of test metrics
         '''
-        print("\n" + "="*50)
-        print("Testing on test set...")
-        print("="*50)
-        
         self.model.eval()
         
         test_loss = 0.0
@@ -425,13 +419,10 @@ class SwinTrainer():
             for key in metric_sums
         }
         
-        print("\n" + "="*50)
-        print("TEST RESULTS")
-        print("="*50)
+        print("Test Results")
         print(f"Test Loss: {avg_loss:.4f}")
         print(f"Test Mean Dice: {avg_metrics['mean_dice']:.4f} | Test Dice WT: {avg_metrics['dice_wt']:.4f} | Test Dice TC: {avg_metrics['dice_tc']:.4f} | Test Dice ET: {avg_metrics['dice_et']:.4f}")
         print(f"Test Mean HD95: {avg_metrics['mean_hd95']:.4f} | Test HD95 WT: {avg_metrics['hd95_wt']:.4f} | Test HD95 TC: {avg_metrics['hd95_tc']:.4f} | Test HD95 ET: {avg_metrics['hd95_et']:.4f}")
-        print("="*50)
         
         return avg_metrics
 

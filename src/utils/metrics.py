@@ -60,7 +60,7 @@ class BraTSMetrics:
                 h = compute_hausdorff_distance(y_pred=p_reg, y=g_reg, spacing=(1, 1, 1), percentile=95)
                 h_val = float(torch.nanmean(h).cpu().item())
             except Exception:
-                h_val = 0.0 # Standard fallback for empty predictions
+                h_val = 0.0
             
             hd95_scores.append(h_val)
             results[f"hd95_{name}"] = h_val

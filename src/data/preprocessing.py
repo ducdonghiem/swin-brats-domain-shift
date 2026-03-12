@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class BraTSPreprocessor:
-    """Preprocesses BraTS 2021 dataset for Swin Transformer segmentation"""
     
     def __init__(self, data_dir, output_dir, modalities=None):
         self.data_dir = Path(data_dir)
@@ -30,15 +29,10 @@ class BraTSPreprocessor:
             (dir_path / 'masks').mkdir(exist_ok=True)
     
     def load_nifti_volume(self, filepath):
-        """Load a .nii.gz file and return as numpy array"""
         img = nib.load(filepath)
         return np.asarray(img.dataobj)
     
     def normalize_volume(self, volume):
-        """
-        Normalize volume to [0, 1] range
-        Uses percentile-based normalization to handle outliers
-        """
         # Get non-zero voxels (background is 0)
         non_zero = volume[volume > 0]
         
@@ -56,12 +50,6 @@ class BraTSPreprocessor:
         return volume
     
     def process_patient(self, patient_dir):
-        """
-        Process a single patient directory
-        
-        Returns:
-            tuple: (modalities_dict, mask)
-        """
         patient_id = patient_dir.name
         logger.info(f"Processing {patient_id}...")
         
@@ -137,24 +125,21 @@ class BraTSPreprocessor:
         
         logger.info(f"Found {len(patient_dirs)} patients")
         
-        # First, split patients into train/val/test WITHOUT loading all data
+        # Split patients into train/val/test
         patient_ids = [d.name for d in patient_dirs]
         
-        # Handle edge cases for small datasets or zero splits
         split_total = val_split + test_split
         if len(patient_ids) < 2 or split_total <= 0:
             train_ids = patient_ids
             val_ids = []
             test_ids = []
         else:
-            # First split: train vs temp
             train_ids, temp_ids = train_test_split(
                 patient_ids,
                 test_size=split_total,
                 random_state=42
             )
 
-            # Second split: temp into val/test
             if len(temp_ids) == 0:
                 val_ids = []
                 test_ids = []
@@ -175,19 +160,16 @@ class BraTSPreprocessor:
         logger.info(f"Val patients: {len(val_ids)}")
         logger.info(f"Test patients: {len(test_ids)}")
         
-        # Convert to sets for O(1) lookup
         train_ids_set = set(train_ids)
         val_ids_set = set(val_ids)
         test_ids_set = set(test_ids)
         
-        # Save volumes to appropriate directories
         total_volumes = {'train': 0, 'val': 0, 'test': 0}
         successfully_processed = 0
         
         for patient_dir in tqdm(patient_dirs, desc="Processing and saving patients"):
             patient_id = patient_dir.name
 
-            # Process patient (loads data into memory)
             processed = self.process_patient(patient_dir)
             if processed is None:
                 continue
@@ -195,7 +177,6 @@ class BraTSPreprocessor:
 
             successfully_processed += 1
 
-            # Determine which split this patient belongs to
             if patient_id in train_ids_set:
                 output_dir = self.train_dir
                 split = 'train'
@@ -206,27 +187,22 @@ class BraTSPreprocessor:
                 output_dir = self.test_dir
                 split = 'test'
 
-            # Save patient files (per modality)
             self.save_patient_files(modalities_dict, mask, patient_id, output_dir)
             total_volumes[split] += 1
 
-            # Free memory (important!)
             del modalities_dict, mask
         
-        logger.info("=" * 60)
         logger.info("Preprocessing Complete!")
         logger.info(f"Train volumes: {total_volumes['train']}")
         logger.info(f"Val volumes: {total_volumes['val']}")
         logger.info(f"Test volumes: {total_volumes['test']}")
         logger.info(f"Total volumes: {sum(total_volumes.values())}")
         logger.info(f"Output directory: {self.output_dir}")
-        logger.info("=" * 60)
         
         return total_volumes
 
 
 def main():
-    """Example usage"""
     parser = argparse.ArgumentParser(description="Preprocess BraTS 2021 dataset")
     parser.add_argument(
         "--data_dir",

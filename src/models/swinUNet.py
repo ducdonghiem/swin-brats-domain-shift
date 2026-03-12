@@ -14,8 +14,6 @@ except ImportError:
 
 class SwinUNet(nn.Module):
     """
-    Complete Swin-UNet architecture with proper skip connections.
-    
     Architecture:
         Input: (B, 3, 224, 224)
         
@@ -137,54 +135,54 @@ class SwinUNet(nn.Module):
         x = self.patch_merging3(enc3, H, W)
         H, W = H // 2, W // 2  # Now 7x7
         
-        # ============ BOTTLENECK ============
+        # BOTTLENECK
         # 7x7x768
         x = self.bottleneck(x, H, W)  # (B, 7*7, 768)
         
-        # ============ DECODER ============
+        # DECODER
         # Decoder Stage 1: 7x7x768 -> 14x14x384
         x = self.patch_expanding1(x, H, W)  # (B, 14*14, 384)
         H, W = H * 2, W * 2  # Now 14x14
         
-        # Swin Transformer blocks first
+        # Swin Transformer blocks
         x = self.decoder_stage1(x, H, W)  # (B, 14*14, 384)
         
-        # Then skip connection
+        # Skip connection
         x = x.view(-1, H, W, 384).permute(0, 3, 1, 2)  # (B, 384, 14, 14)
         enc3_img = enc3.view(-1, H, W, 384).permute(0, 3, 1, 2)  # (B, 384, 14, 14)
         x = self.skip_connection1(enc3_img, x)  # (B, 384, 14, 14)
         
-        # Convert back to (B, H*W, C) for next stage
+        # Convert back to (B, H*W, C)
         x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 384)  # (B, 14*14, 384)
         
         # Decoder Stage 2: 14x14x384 -> 28x28x192
         x = self.patch_expanding2(x, H, W)  # (B, 28*28, 192)
         H, W = H * 2, W * 2  # Now 28x28
         
-        # Swin Transformer blocks first
+        # Swin Transformer blocks
         x = self.decoder_stage2(x, H, W)  # (B, 28*28, 192)
         
-        # Then skip connection
+        # Skip connection
         x = x.view(-1, H, W, 192).permute(0, 3, 1, 2)  # (B, 192, 28, 28)
         enc2_img = enc2.view(-1, H, W, 192).permute(0, 3, 1, 2)  # (B, 192, 28, 28)
         x = self.skip_connection2(enc2_img, x)  # (B, 192, 28, 28)
         
-        # Convert back to (B, H*W, C) for next stage
+        # Convert back to (B, H*W, C)
         x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 192)  # (B, 28*28, 192)
         
         # Decoder Stage 3: 28x28x192 -> 56x56x96
         x = self.patch_expanding3(x, H, W)  # (B, 56*56, 96)
         H, W = H * 2, W * 2  # Now 56x56
         
-        # Swin Transformer blocks first
+        # Swin Transformer blocks
         x = self.decoder_stage3(x, H, W)  # (B, 56*56, 96)
         
-        # Then skip connection
+        # Skip connection
         x = x.view(-1, H, W, 96).permute(0, 3, 1, 2)  # (B, 96, 56, 56)
         enc1_img = enc1.view(-1, H, W, 96).permute(0, 3, 1, 2)  # (B, 96, 56, 56)
         x = self.skip_connection3(enc1_img, x)  # (B, 96, 56, 56)
         
-        # Convert back to (B, H*W, C) for final expanding
+        # Convert back to (B, H*W, C)
         x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 96)  # (B, 56*56, 96)
         
         # Final Patch Expanding: 56x56x96 -> 224x224x96
@@ -194,15 +192,11 @@ class SwinUNet(nn.Module):
 
 
 if __name__ == "__main__":
-    # Test the full model
     batch_size = 2
     input_image = torch.randn(batch_size, 3, 224, 224)
     
     model = SwinUNet(in_channels=3, num_classes=4)
     
-    print("=" * 70)
-    print("Testing Complete Swin-UNet with Skip Connections")
-    print("=" * 70)
     print(f"Input shape: {input_image.shape}")
     print()
     
@@ -222,13 +216,3 @@ if __name__ == "__main__":
     print(f"Total parameters: {total_params:,}")
     print(f"Trainable parameters: {trainable_params:,}")
     print()
-    
-    print("=" * 70)
-    print("Architecture verified! ✓")
-    print("=" * 70)
-    print()
-    print("Skip connections implemented at:")
-    print("  - 1/4 scale: 14x14x384 (encoder stage 3 ↔ decoder stage 1)")
-    print("  - 1/2 scale: 28x28x192 (encoder stage 2 ↔ decoder stage 2)")
-    print("  - 1/1 scale: 56x56x96  (encoder stage 1 ↔ decoder stage 3)")
-    print("=" * 70)
