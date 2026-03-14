@@ -24,6 +24,8 @@ data:
   modality_order: ["flair", "t1", "t1ce", "t2"]
   pin_memory: true
   shuffle_train: true
+  transform:
+    rotate: 20 # degrees
 
 model:
   in_channels: 155

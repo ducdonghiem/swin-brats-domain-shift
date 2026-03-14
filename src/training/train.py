@@ -2,7 +2,7 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim import AdamW
-from torchvision.transforms import RandomRotation
+import torchvision.transforms.v2 as T # v2 can apply the same transformation to multiple inputs at once
 
 from .trainer import SwinTrainer
 from data import MRIDataset, collate_modalities
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     modality_order = train_config['data']['modality_order']
 
     # Data augmentation
-    transform= RandomRotation(20)
+    transform = T.Compose([T.RandomRotation(train_config['data']['transform']['rotate'])])
 
     train_dataset = MRIDataset(
         data_dir=train_dir,
