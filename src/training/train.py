@@ -2,6 +2,7 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim import AdamW
+from torchvision.transforms import RandomRotation
 
 from .trainer import SwinTrainer
 from data import MRIDataset, collate_modalities
@@ -20,9 +21,13 @@ if __name__ == "__main__":
     test_dir = Path(train_config['data']['test_dir'])
     modality_order = train_config['data']['modality_order']
 
+    # Data augmentation
+    transform= RandomRotation(20)
+
     train_dataset = MRIDataset(
         data_dir=train_dir,
-        modalities=modality_order
+        modalities=modality_order,
+        transform=transform
     )
     val_dataset = MRIDataset(
         data_dir=val_dir,
