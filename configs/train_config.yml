@@ -18,15 +18,16 @@ training:
 device: "cuda"
 
 data:
-  train_dir: "data/processed/brats/train"
-  val_dir: "data/processed/brats/val"
-  test_dir: "data/processed/brats/test"
+  train_dir: "src/data/processed/brats/train"
+  val_dir: "src/data/processed/brats/val"
+  test_dir: "src/data/processed/brats/test"
   modality_order: ["flair", "t1", "t1ce", "t2"]
   pin_memory: true
   shuffle_train: true
   transform:
     prob: 0.2   # probability
     rotate: 20  # degrees
+    elastic: 7  # num control points
 
 model:
   in_channels: 155

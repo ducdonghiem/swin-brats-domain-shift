@@ -1,16 +1,14 @@
 from pathlib import Path
-from torch.utils.data import DataLoader
+
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim import AdamW
-import torchvision.transforms.v2.functional as TF # v2 can apply the same transformation to multiple inputs at once
+import torchio as tio
 
 from .trainer import SwinTrainer
 from ..data import MRIDataset, collate_modalities
 from ..utils import BraTSLoss, load_config
 from ..models import SwinBraTS
 
-def _rotate_transform(angle: float):
-    return lambda inputs: TF.rotate(inputs, angle=angle)
 
 if __name__ == "__main__":
     '''
@@ -27,12 +25,13 @@ if __name__ == "__main__":
     # Data augmentation
     tf_prob = train_config['data']['transform']['prob']
     tf_rot = train_config['data']['transform']['rotate']
+    tf_elastic_control = train_config['data']['transform']['elastic']
     transforms = [
-        (_rotate_transform(tf_rot), tf_prob),
-        (TF.hflip, tf_prob),
-        (TF.vflip, tf_prob),
-        (TF.adjust_brightness, tf_prob),
-        (TF.elastic, tf_prob)
+        (tio.RandomElasticDeformation(num_control_points=tf_elastic_control), tf_prob),
+        (tio.RandomFlip(axes=0), tf_prob),
+        (tio.RandomFlip(axes=1), tf_prob),
+        (tio.RandomAffine(degrees=tf_rot), tf_prob),
+        (tio.RandomBiasField(), tf_prob),
     ]
 
     train_dataset = MRIDataset(
@@ -54,7 +53,7 @@ if __name__ == "__main__":
     pin_memory = train_config['data']['pin_memory']
     shuffle_train = train_config['data']['shuffle_train']
 
-    training_loader = DataLoader(
+    training_loader = tio.SubjectsLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=shuffle_train,
@@ -65,7 +64,7 @@ if __name__ == "__main__":
     if len(val_dataset) == 0:
         val_loader = training_loader
     else:
-        val_loader = DataLoader(
+        val_loader = tio.SubjectsLoader(
             val_dataset,
             batch_size=batch_size,
             shuffle=False,
@@ -74,7 +73,7 @@ if __name__ == "__main__":
             collate_fn=collate_modalities
         )
     
-    test_loader = DataLoader(
+    test_loader = tio.SubjectsLoader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,

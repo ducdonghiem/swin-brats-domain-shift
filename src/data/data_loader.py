@@ -4,14 +4,13 @@ import random
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
-from torchvision import tv_tensors
+import torchio as tio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class MRIDataset(Dataset):
+class MRIDataset(tio.SubjectsDataset):
     def __init__(self, data_dir=None, modalities=["flair", "t1", "t1ce", "t2"], transforms=None):
         """
 
@@ -72,25 +71,42 @@ class MRIDataset(Dataset):
         return np.transpose(vol, (2, 0, 1))
 
     def __getitem__(self, idx):
-        case = self.cases[idx]
-        mod_paths = case[:-1]
-        seg_path = case[-1]
+        case: list[str] = self.cases[idx]
 
-        # TVTensors are essentially regular Tensors with subclasses for diverse image tasks
-        # Required when applying torchvision v2 transformations
-        modalities = tuple(tv_tensors.Image(
-                self._to_dhw(self._load_volume(path, np.float32)), dtype=torch.float32)
-        for path in mod_paths)
+        # The modality type (t1, mask, etc.) should be the name of the file
+        mod_map = {}
+        for scan_path in case:
+            scan_type = scan_path.split('/')[-1].removesuffix('.npy') 
+            mod_map[scan_type] = scan_path
 
-        mask = tv_tensors.Mask(
-            self._to_dhw(self._load_volume(seg_path, np.int64)), dtype=torch.long)
+        # ScalarImages expect 4D data, so we add channel dimension in front
+        subject = tio.Subject(
+            flair=tio.ScalarImage(tensor=torch.from_numpy(
+                self._load_volume(mod_map['flair'], np.float32)).unsqueeze(0)),
+            t1=tio.ScalarImage(tensor=torch.from_numpy(
+                self._load_volume(mod_map['t1'], np.float32)).unsqueeze(0)),
+            t2=tio.ScalarImage(tensor=torch.from_numpy(
+                self._load_volume(mod_map['t1ce'], np.float32)).unsqueeze(0)),
+            t1ce=tio.ScalarImage(tensor=torch.from_numpy(
+                self._load_volume(mod_map['t2'], np.float32)).unsqueeze(0)),
+            mask=tio.LabelMap(tensor=torch.from_numpy(
+                self._load_volume(mod_map['mask'], np.int64)).unsqueeze(0))
+        )
 
         if self.transforms:
             for transform, prob in self.transforms:
                 if random.random() <= prob:
-                    modalities, mask = transform([modalities, mask])
+                    subject = transform(subject)
 
-        return modalities, mask
+        # Return images as Tensors with depth as first dimension
+        # and remove the channel dimension from the transforms
+        flair = self._to_dhw(subject['flair'][tio.DATA].squeeze(0))
+        t1 = self._to_dhw(subject['t1'][tio.DATA].squeeze(0))
+        t1ce = self._to_dhw(subject['t1ce'][tio.DATA].squeeze(0))
+        t2 = self._to_dhw(subject['t2'][tio.DATA].squeeze(0))
+        mask = self._to_dhw(subject['mask'][tio.DATA].squeeze(0))
+
+        return tuple(flair, t1, t1ce, t2), mask
 
 
 def collate_modalities(batch):
@@ -105,19 +121,29 @@ def collate_modalities(batch):
     mask_batch = torch.stack(mask, dim=0)
     return modality_batches, mask_batch
 
-
 if __name__ == "__main__":
     split_dir = Path("src/data/processed/train")
 
-    dataset = MRIDataset(data_dir=split_dir)
+    tf_prob = 1
+    transforms = [
+        (tio.RandomElasticDeformation(num_control_points=7), tf_prob),
+        (tio.RandomFlip(axes=0), tf_prob),
+        (tio.RandomFlip(axes=1), tf_prob),
+        (tio.RandomAffine(degrees=20), tf_prob),
+        (tio.RandomBiasField(), tf_prob),
+    ]
 
-    loader = DataLoader(
+    dataset = MRIDataset(data_dir=split_dir, transforms=transforms)
+
+    print(len(dataset))
+
+    loader = tio.SubjectsLoader(
         dataset,
+        collate_fn=collate_modalities,
         batch_size=2,
         shuffle=True,
         num_workers=2,
         pin_memory=False,
-        collate_fn=collate_modalities
     )
 
     # Iterate
