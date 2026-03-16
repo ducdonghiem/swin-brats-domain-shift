@@ -5,9 +5,9 @@ from torch.optim import AdamW
 import torchvision.transforms.v2.functional as TF # v2 can apply the same transformation to multiple inputs at once
 
 from .trainer import SwinTrainer
-from data import MRIDataset, collate_modalities
-from utils import BraTSLoss, load_config
-from models import SwinBraTS
+from ..data import MRIDataset, collate_modalities
+from ..utils import BraTSLoss, load_config
+from ..models import SwinBraTS
 
 def _rotate_transform(angle: float):
     return lambda inputs: TF.rotate(inputs, angle=angle)

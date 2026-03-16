@@ -7,8 +7,6 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import tv_tensors
 
-from utils import load_config
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -26,7 +24,6 @@ class MRIDataset(Dataset):
 
         self.modalities = modalities
         self.transforms = transforms
-        self.transform_config = load_config('configs/train_config.yml')['data']['transforms']
 
         if data_dir is None:
             raise ValueError("Either data_dir or cases must be provided")

@@ -2,7 +2,7 @@ import os
 import torch
 from tqdm import tqdm
 
-from utils import BraTSMetrics
+from ..utils import BraTSMetrics
 
 class SwinTrainer():
 
