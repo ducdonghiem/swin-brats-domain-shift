@@ -25,7 +25,8 @@ data:
   pin_memory: true
   shuffle_train: true
   transform:
-    rotate: 20 # degrees
+    prob: 0.2   # probability
+    rotate: 20  # degrees
 
 model:
   in_channels: 155

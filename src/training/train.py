@@ -2,12 +2,15 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim import AdamW
-import torchvision.transforms.v2 as T # v2 can apply the same transformation to multiple inputs at once
+import torchvision.transforms.v2.functional as TF # v2 can apply the same transformation to multiple inputs at once
 
 from .trainer import SwinTrainer
 from data import MRIDataset, collate_modalities
 from utils import BraTSLoss, load_config
 from models import SwinBraTS
+
+def _rotate_transform(angle: float):
+    return lambda inputs: TF.rotate(inputs, angle=angle)
 
 if __name__ == "__main__":
     '''
@@ -22,12 +25,20 @@ if __name__ == "__main__":
     modality_order = train_config['data']['modality_order']
 
     # Data augmentation
-    transform = T.Compose([T.RandomRotation(train_config['data']['transform']['rotate'])])
+    tf_prob = train_config['data']['transform']['prob']
+    tf_rot = train_config['data']['transform']['rotate']
+    transforms = [
+        (_rotate_transform(tf_rot), tf_prob),
+        (TF.hflip, tf_prob),
+        (TF.vflip, tf_prob),
+        (TF.adjust_brightness, tf_prob),
+        (TF.elastic, tf_prob)
+    ]
 
     train_dataset = MRIDataset(
         data_dir=train_dir,
         modalities=modality_order,
-        transform=transform
+        transforms=transforms
     )
     val_dataset = MRIDataset(
         data_dir=val_dir,
