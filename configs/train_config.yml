@@ -1,13 +1,44 @@
 training:
   epochs: 100
   warmup_epochs: 5
-  learning_rate: 0.001
+  learning_rate: 0.0001
   checkpoint_dir: "checkpoints"
-  log_interval: 10
-  batch_size: 1
-  num_workers: 0
+  checkpoint_interval: 30
+  log_interval: 20
+  batch_size: 2  # Works with embed_dim=32, AMP, and gradient checkpointing
+  num_workers: 2
+  results_dir: "results"
+  use_amp: true  # Use automatic mixed precision to save memory
+  gradient_checkpointing: false
+  # HD95 uses scipy distance transforms (~5 GB CPU RAM per val batch).
+  # Set to 0 to skip HD95 during training entirely (it still runs in test()).
+  # Set to N to compute HD95 every N epochs (e.g. 20 = every 20 epochs).
+  hd95_interval: 0
 
-device: "cuda"  # or "cpu"
+device: "cuda"
 
-# TODO: Early stopping criteria
+data:
+  train_dir: "data/processed/brats/train"
+  val_dir: "data/processed/brats/val"
+  test_dir: "data/processed/brats/test"
+  modality_order: ["flair", "t1", "t1ce", "t2"]
+  pin_memory: true
+  shuffle_train: true
+  transform:
+    prob: 0.2   # probability
+    rotate: 20  # degrees
+    elastic: 7  # num control points
+
+model:
+  in_channels: 155
+  num_classes: 4
+  embed_dim: 32  # Reduced from 48 to fit in H100 memory with batch_size=4
+  window_size: 7
+  patch_size: 4
+
 early_stopping:
+  enabled: true
+  patience: 15
+  min_delta: 0.001
+  metric: "val_mean_dice"
+  mode: "max"

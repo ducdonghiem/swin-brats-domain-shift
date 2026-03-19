@@ -1,32 +1,32 @@
 import logging
 from pathlib import Path
+import random
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
+import torchio as tio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class MRIDataset(Dataset):
-    def __init__(self, data_dir=None, cases=None, modalities=["flair", "t1", "t1ce", "t2"], transform=None):
+class MRIDataset(tio.SubjectsDataset):
+    def __init__(self, data_dir=None, modalities=["flair", "t1", "t1ce", "t2"], transforms=None):
         """
-        data_dir: split directory containing images/ and masks/ subfolders
-        cases: optional list of tuples (flair_path, t1_path, t1ce_path, t2_path, seg_path)
-        modalities: ordered list of modality names (matches filenames saved by preprocessor)
-        transform: optional augmentation / preprocessing function
+
+        Args:
+            data_dir (str): split directory containing images/ and masks/ subfolders
+            cases (list(tuple(str))): optional list of tuples (flair_path, t1_path, t1ce_path, t2_path, seg_path)
+            modalities (list(str)): ordered list of modality names (matches filenames saved by preprocessor)
+            transforms (tuple(func, prob)): optional list of transforms for data augmentation
         """
 
         self.modalities = modalities
-        self.transform = transform
+        self.transforms = transforms
 
-        if cases is None:
-            if data_dir is None:
-                raise ValueError("Either data_dir or cases must be provided")
-            self.cases = self._discover_cases(Path(data_dir))
-        else:
-            self.cases = self._validate_cases(cases)
+        if data_dir is None:
+            raise ValueError("Either data_dir or cases must be provided")
+        self.cases = self._build_dataset(Path(data_dir))
 
     def __len__(self):
         return len(self.cases)
@@ -35,7 +35,7 @@ class MRIDataset(Dataset):
         # Load volume (expected .npy format)
         return np.load(path).astype(dtype, copy=False)
 
-    def _discover_cases(self, data_dir):
+    def _build_dataset(self, data_dir):
         '''
         Discover cases from the given data directory. Expects cases to exist in `data_dir`/images or masks/.
         '''
@@ -62,22 +62,6 @@ class MRIDataset(Dataset):
 
         return cases
 
-    def _validate_cases(self, cases):
-        '''
-        Validate the provided cases list. Each case should be a tuple of paths matching the `modalities` order, followed by the segmentation path.
-        '''
-        if len(cases) == 0:
-            return []
-
-        expected_len = len(self.modalities) + 1
-        for case in cases:
-            if not isinstance(case, (tuple, list)) or len(case) != expected_len:
-                raise ValueError(
-                    "cases must be a list of tuples matching the modalities order"
-                )
-
-        return cases
-
     def _to_dhw(self, vol):
         """
         Convert BraTS array from (H, W, D) to (D, H, W) so D is channel dim for Conv2d.
@@ -87,51 +71,79 @@ class MRIDataset(Dataset):
         return np.transpose(vol, (2, 0, 1))
 
     def __getitem__(self, idx):
-        case = self.cases[idx]
-        mod_paths = case[:-1]
-        seg_path = case[-1]
+        case: list[str] = self.cases[idx]
 
-        modalities = tuple(
-            torch.tensor(self._to_dhw(self._load_volume(path, np.float32)),
-                         dtype=torch.float32)
-            for path in mod_paths
+        # The modality type (t1, mask, etc.) should be the name of the file
+        mod_map = {}
+        for scan_path in case:
+            scan_type = scan_path.split('/')[-1].removesuffix('.npy') 
+            mod_map[scan_type] = scan_path
+
+        # ScalarImages expect 4D data, so we add channel dimension in front
+        subject = tio.Subject(
+            flair=tio.ScalarImage(tensor=torch.from_numpy(
+                self._load_volume(mod_map['flair'], np.float32)).unsqueeze(0)),
+            t1=tio.ScalarImage(tensor=torch.from_numpy(
+                self._load_volume(mod_map['t1'], np.float32)).unsqueeze(0)),
+            t2=tio.ScalarImage(tensor=torch.from_numpy(
+                self._load_volume(mod_map['t1ce'], np.float32)).unsqueeze(0)),
+            t1ce=tio.ScalarImage(tensor=torch.from_numpy(
+                self._load_volume(mod_map['t2'], np.float32)).unsqueeze(0)),
+            mask=tio.LabelMap(tensor=torch.from_numpy(
+                self._load_volume(mod_map['mask'], np.int64)).unsqueeze(0))
         )
 
-        label = torch.tensor(self._to_dhw(self._load_volume(
-            seg_path, np.int64)), dtype=torch.long)
+        if self.transforms:
+            for transform, prob in self.transforms:
+                if random.random() <= prob:
+                    subject = transform(subject)
 
-        if self.transform:
-            modalities, label = self.transform(modalities, label)
+        # Return images as Tensors with depth as first dimension
+        # and remove the channel dimension from the transforms
+        flair = self._to_dhw(subject['flair'][tio.DATA].squeeze(0))
+        t1 = self._to_dhw(subject['t1'][tio.DATA].squeeze(0))
+        t1ce = self._to_dhw(subject['t1ce'][tio.DATA].squeeze(0))
+        t2 = self._to_dhw(subject['t2'][tio.DATA].squeeze(0))
+        mask = self._to_dhw(subject['mask'][tio.DATA].squeeze(0))
 
-        return modalities, label
+        return tuple(flair, t1, t1ce, t2), mask
 
 
 def collate_modalities(batch):
     """
-    Collate a batch of (modalities_tuple, label) into
-    (modalities_tuple_batch, label_batch).
+    Collate a batch of (modalities_tuple, mask) into
+    (modalities_tuple_batch, mask_batch).
     """
-    modalities, labels = zip(*batch)
+    modalities, mask = zip(*batch)
 
     modality_batches = tuple(torch.stack(mod_list, dim=0)
                              for mod_list in zip(*modalities))
-    label_batch = torch.stack(labels, dim=0)
-    return modality_batches, label_batch
-
+    mask_batch = torch.stack(mask, dim=0)
+    return modality_batches, mask_batch
 
 if __name__ == "__main__":
-    # Example usage
     split_dir = Path("src/data/processed/train")
 
-    dataset = MRIDataset(data_dir=split_dir)
+    tf_prob = 1
+    transforms = [
+        (tio.RandomElasticDeformation(num_control_points=7), tf_prob),
+        (tio.RandomFlip(axes=0), tf_prob),
+        (tio.RandomFlip(axes=1), tf_prob),
+        (tio.RandomAffine(degrees=20), tf_prob),
+        (tio.RandomBiasField(), tf_prob),
+    ]
 
-    loader = DataLoader(
+    dataset = MRIDataset(data_dir=split_dir, transforms=transforms)
+
+    print(len(dataset))
+
+    loader = tio.SubjectsLoader(
         dataset,
+        collate_fn=collate_modalities,
         batch_size=2,
         shuffle=True,
         num_workers=2,
         pin_memory=False,
-        collate_fn=collate_modalities
     )
 
     # Iterate
