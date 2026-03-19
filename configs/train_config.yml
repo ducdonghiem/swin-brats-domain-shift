@@ -1,11 +1,11 @@
 training:
   epochs: 100
   warmup_epochs: 5
-  learning_rate: 0.0001
-  checkpoint_dir: "checkpoints"
-  checkpoint_interval: 30
-  log_interval: 20
-  batch_size: 2  # Works with embed_dim=32, AMP, and gradient checkpointing
+  learning_rate: 0.0002
+  checkpoint_dir: "checkpoints-run3"
+  checkpoint_interval: 40
+  log_interval: 40
+  batch_size: 4  # Works with embed_dim=32, AMP, and gradient checkpointing
   num_workers: 2
   results_dir: "results"
   use_amp: true  # Use automatic mixed precision to save memory

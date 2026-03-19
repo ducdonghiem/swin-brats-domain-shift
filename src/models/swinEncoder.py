@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
-try:
-    from SwinTransformers.swinTransformerBlock import SwinTransformerBlock
-except ImportError:
-    from .SwinTransformers.swinTransformerBlock import SwinTransformerBlock
+from .SwinTransformers import SwinTransformerBlock
 
 
 class PatchPartition(nn.Module):

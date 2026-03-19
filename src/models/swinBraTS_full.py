@@ -1,18 +1,24 @@
+# import torch
+# import torch.nn as nn
+# import sys
+# from pathlib import Path
+
+# sys.path.insert(0, str(Path(__file__).parent))
+
+# try:
+#     from projection_block import ProjectionBlock
+#     from swinUNet import SwinUNet
+#     from reconstruction_block import ReconstructionBlock
+# except ImportError:
+#     from .projection_block import ProjectionBlock
+#     from .swinUNet import SwinUNet
+#     from .reconstruction_block import ReconstructionBlock
+
 import torch
 import torch.nn as nn
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
-
-try:
-    from projection_block import ProjectionBlock
-    from swinUNet import SwinUNet
-    from reconstruction_block import ReconstructionBlock
-except ImportError:
-    from .projection_block import ProjectionBlock
-    from .swinUNet import SwinUNet
-    from .reconstruction_block import ReconstructionBlock
+from .projection_block import ProjectionBlock
+from .swinUNet import SwinUNet
+from .reconstruction_block import ReconstructionBlock
 
 
 class SwinBraTS(nn.Module):
