@@ -51,6 +51,9 @@ class SwinTransformerBlock(nn.Module):
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = MLP(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+
+        # Cache for attention mask — recomputed only when spatial dims change
+        self._attn_mask_cache = {}  # key: (H, W) -> mask tensor
     
     def forward(self, x, H, W):
         """
@@ -75,7 +78,11 @@ class SwinTransformerBlock(nn.Module):
         # Cyclic shift
         if self.shift_size > 0:
             shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
-            attn_mask = self.create_mask(Hp, Wp).to(x.device)
+            # Use cached mask; create and cache if not seen this (Hp, Wp) before
+            cache_key = (Hp, Wp)
+            if cache_key not in self._attn_mask_cache:
+                self._attn_mask_cache[cache_key] = self.create_mask(Hp, Wp).to(x.device)
+            attn_mask = self._attn_mask_cache[cache_key]
         else:
             shifted_x = x
             attn_mask = None

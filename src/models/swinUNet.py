@@ -142,50 +142,49 @@ class SwinUNet(nn.Module):
         x = self.bottleneck(x, H, W)  # (B, 7*7, 768)
         
         # ============ DECODER ============
+        # Correct order per Swin-UNet paper:
+        #   1. Patch expanding (upsample)
+        #   2. Fuse skip connection (so transformer sees encoder context)
+        #   3. Swin Transformer blocks
+
         # Decoder Stage 1: 7x7x768 -> 14x14x384
         x = self.patch_expanding1(x, H, W)  # (B, 14*14, 384)
         H, W = H * 2, W * 2  # Now 14x14
-        
-        # Swin Transformer blocks first
-        x = self.decoder_stage1(x, H, W)  # (B, 14*14, 384)
-        
-        # Then skip connection
-        x = x.view(-1, H, W, 384).permute(0, 3, 1, 2)  # (B, 384, 14, 14)
-        enc3_img = enc3.view(-1, H, W, 384).permute(0, 3, 1, 2)  # (B, 384, 14, 14)
-        x = self.skip_connection1(enc3_img, x)  # (B, 384, 14, 14)
-        
-        # Convert back to (B, H*W, C) for next stage
+
+        # Skip connection BEFORE transformer blocks
+        x = x.view(-1, H, W, 384).permute(0, 3, 1, 2)          # (B, 384, 14, 14)
+        enc3_img = enc3.view(-1, H, W, 384).permute(0, 3, 1, 2) # (B, 384, 14, 14)
+        x = self.skip_connection1(enc3_img, x)                   # (B, 384, 14, 14)
         x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 384)  # (B, 14*14, 384)
-        
+
+        # Transformer blocks now attend to fused encoder+decoder features
+        x = self.decoder_stage1(x, H, W)  # (B, 14*14, 384)
+
         # Decoder Stage 2: 14x14x384 -> 28x28x192
         x = self.patch_expanding2(x, H, W)  # (B, 28*28, 192)
         H, W = H * 2, W * 2  # Now 28x28
-        
-        # Swin Transformer blocks first
-        x = self.decoder_stage2(x, H, W)  # (B, 28*28, 192)
-        
-        # Then skip connection
-        x = x.view(-1, H, W, 192).permute(0, 3, 1, 2)  # (B, 192, 28, 28)
-        enc2_img = enc2.view(-1, H, W, 192).permute(0, 3, 1, 2)  # (B, 192, 28, 28)
-        x = self.skip_connection2(enc2_img, x)  # (B, 192, 28, 28)
-        
-        # Convert back to (B, H*W, C) for next stage
+
+        # Skip connection BEFORE transformer blocks
+        x = x.view(-1, H, W, 192).permute(0, 3, 1, 2)          # (B, 192, 28, 28)
+        enc2_img = enc2.view(-1, H, W, 192).permute(0, 3, 1, 2) # (B, 192, 28, 28)
+        x = self.skip_connection2(enc2_img, x)                   # (B, 192, 28, 28)
         x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 192)  # (B, 28*28, 192)
-        
+
+        # Transformer blocks now attend to fused encoder+decoder features
+        x = self.decoder_stage2(x, H, W)  # (B, 28*28, 192)
+
         # Decoder Stage 3: 28x28x192 -> 56x56x96
         x = self.patch_expanding3(x, H, W)  # (B, 56*56, 96)
         H, W = H * 2, W * 2  # Now 56x56
-        
-        # Swin Transformer blocks first
-        x = self.decoder_stage3(x, H, W)  # (B, 56*56, 96)
-        
-        # Then skip connection
-        x = x.view(-1, H, W, 96).permute(0, 3, 1, 2)  # (B, 96, 56, 56)
+
+        # Skip connection BEFORE transformer blocks
+        x = x.view(-1, H, W, 96).permute(0, 3, 1, 2)           # (B, 96, 56, 56)
         enc1_img = enc1.view(-1, H, W, 96).permute(0, 3, 1, 2)  # (B, 96, 56, 56)
-        x = self.skip_connection3(enc1_img, x)  # (B, 96, 56, 56)
-        
-        # Convert back to (B, H*W, C) for final expanding
+        x = self.skip_connection3(enc1_img, x)                   # (B, 96, 56, 56)
         x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 96)  # (B, 56*56, 96)
+
+        # Transformer blocks now attend to fused encoder+decoder features
+        x = self.decoder_stage3(x, H, W)  # (B, 56*56, 96)
         
         # Final Patch Expanding: 56x56x96 -> 224x224x96
         x = self.final_expanding(x, H, W)  # (B, 96, 224, 224)
