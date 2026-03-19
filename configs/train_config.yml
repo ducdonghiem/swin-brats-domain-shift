@@ -24,10 +24,21 @@ data:
   modality_order: ["flair", "t1", "t1ce", "t2"]
   pin_memory: true
   shuffle_train: true
+  # transform:
+  #   prob: 0.2   # probability
+  #   rotate: 20  # degrees
+  #   elastic: 7  # num control points
   transform:
-    prob: 0.2   # probability
-    rotate: 20  # degrees
-    elastic: 7  # num control points
+    # ElasticDeformation: most expensive (~15-25s/sample on CPU), use low prob
+    # RandomAffine: moderately expensive (~3-6s/sample), medium prob
+    # BiasField: cheap (~1-2s/sample), medium-high prob
+    # Flips: free, moderate prob
+    elastic_prob: 0.1
+    elastic_control_points: 7
+    affine_prob: 0.2
+    affine_degrees: 15
+    bias_field_prob: 0.2
+    flip_prob: 0.2
 
 model:
   in_channels: 155

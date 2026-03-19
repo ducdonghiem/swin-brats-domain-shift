@@ -22,16 +22,18 @@ if __name__ == "__main__":
     test_dir = Path(train_config['data']['test_dir'])
     modality_order = train_config['data']['modality_order']
 
-    # Data augmentation
-    tf_prob = train_config['data']['transform']['prob']
-    tf_rot = train_config['data']['transform']['rotate']
-    tf_elastic_control = train_config['data']['transform']['elastic']
+    # Data augmentation — probabilities are set per-transform in config.
+    # ElasticDeformation is very expensive (~15-25s/sample on a single CPU core)
+    # and should have a low probability. Running it on every sample with prob=1.0
+    # would make each epoch 5-10x slower with the GPU sitting idle.
+    tf = train_config['data']['transform']
     transforms = [
-        (tio.RandomElasticDeformation(num_control_points=tf_elastic_control), tf_prob),
-        (tio.RandomFlip(axes=0), tf_prob),
-        (tio.RandomFlip(axes=1), tf_prob),
-        (tio.RandomAffine(degrees=tf_rot), tf_prob),
-        (tio.RandomBiasField(), tf_prob),
+        # (tio.RandomElasticDeformation(num_control_points=tf['elastic_control_points']), tf['elastic_prob']),         # expensive: ~15-25s/sample
+        (tio.RandomFlip(axes=0),   tf['flip_prob']),       # free
+        (tio.RandomFlip(axes=1),   tf['flip_prob']),       # free
+        (tio.RandomAffine(degrees=tf['affine_degrees']),
+         tf['affine_prob']),                               # moderate: ~3-6s/sample
+        (tio.RandomBiasField(),    tf['bias_field_prob']), # cheap: ~1-2s/sample
     ]
 
     train_dataset = MRIDataset(
