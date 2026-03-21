@@ -27,13 +27,14 @@ if __name__ == "__main__":
     # and should have a low probability. Running it on every sample with prob=1.0
     # would make each epoch 5-10x slower with the GPU sitting idle.
     tf = train_config['data']['transform']
-    transforms = [
-        # (tio.RandomElasticDeformation(num_control_points=tf['elastic_control_points']), tf['elastic_prob']),         # expensive: ~15-25s/sample
-        (tio.RandomFlip(axes=0), tf['flip_prob']),       # free
-        (tio.RandomFlip(axes=1), tf['flip_prob']),       # free
-        (tio.RandomAffine(degrees=tf['affine_degrees']), tf['affine_prob']),                               # moderate: ~3-6s/sample
-        (tio.RandomBiasField(), tf['bias_field_prob']), # cheap: ~1-2s/sample
-    ]
+    # transforms = [
+    #     # (tio.RandomElasticDeformation(num_control_points=tf['elastic_control_points']), tf['elastic_prob']),         # expensive: ~15-25s/sample
+    #     (tio.RandomFlip(axes=0), tf['flip_prob']),       # free
+    #     (tio.RandomFlip(axes=1), tf['flip_prob']),       # free
+    #     (tio.RandomAffine(degrees=tf['affine_degrees']), tf['affine_prob']),                               # moderate: ~3-6s/sample
+    #     (tio.RandomBiasField(), tf['bias_field_prob']), # cheap: ~1-2s/sample
+    # ]
+    transforms = None
 
     train_dataset = MRIDataset(
         data_dir=train_dir,
