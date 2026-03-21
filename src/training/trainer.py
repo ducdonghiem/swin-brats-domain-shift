@@ -3,6 +3,7 @@ import torch
 from tqdm import tqdm
 
 from ..utils import BraTSMetrics
+from .gpu_augmentation import GPUAugmentation
 
 class SwinTrainer():
 
@@ -44,6 +45,22 @@ class SwinTrainer():
         # HD95 is expensive (scipy float64 distance transforms, ~5 GB CPU RAM per batch).
         # Hence compute it only every hd95_interval epochs during training, not every epoch.
         self.hd95_interval = config['training'].get('hd95_interval', 0)
+
+        # GPU augmentation — applied after batch is on device, far faster than
+        # torchio CPU transforms (~0.05s vs ~2-10s per batch).
+        # Set augment: false in config to disable (e.g. for val/test runs).
+        aug_cfg = config.get('augmentation', {})
+        if aug_cfg.get('enabled', False) and self.device == 'cuda':
+            self.augmentation = GPUAugmentation(
+                flip_prob=aug_cfg.get('flip_prob', 0.5),
+                affine_prob=aug_cfg.get('affine_prob', 0.2),
+                affine_degrees=aug_cfg.get('affine_degrees', 15),
+                bias_field_prob=aug_cfg.get('bias_field_prob', 0.2),
+                device=self.device,
+            )
+            print("GPU augmentation enabled.")
+        else:
+            self.augmentation = None
 
         # Mixed precision training
         self.use_amp = config['training'].get('use_amp', True)
@@ -130,11 +147,15 @@ class SwinTrainer():
             inputs = [x.to(self.device) for x in inputs]
             labels = labels.to(self.device)
 
+            # GPU augmentation — runs on already-loaded tensors, ~0.05s vs ~2-10s on CPU
+            if self.augmentation is not None:
+                inputs, labels = self.augmentation(inputs, labels)
+
             # Zero gradients before forward pass to avoid accumulating stale gradients
             self.optimizer.zero_grad()
 
             # Forward pass with mixed precision
-            with torch.cuda.amp.autocast(enabled=self.use_amp):
+            with torch.amp.autocast('cuda', enabled=self.use_amp):
                 outputs = self.model(inputs)
                 loss = self.loss_fn(outputs, labels)
             
@@ -189,7 +210,7 @@ class SwinTrainer():
                 labels = labels.to(self.device)
 
                 # Forward pass with mixed precision
-                with torch.cuda.amp.autocast(enabled=self.use_amp):
+                with torch.amp.autocast('cuda', enabled=self.use_amp):
                     outputs = self.model(inputs)
                     loss = self.loss_fn(outputs, labels)
 
@@ -392,7 +413,7 @@ class SwinTrainer():
                 labels = labels.to(self.device)
                 
                 # Forward pass with mixed precision
-                with torch.cuda.amp.autocast(enabled=self.use_amp):
+                with torch.amp.autocast('cuda', enabled=self.use_amp):
                     outputs = self.model(inputs)
                     loss = self.loss_fn(outputs, labels)
                 

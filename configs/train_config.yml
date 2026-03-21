@@ -1,21 +1,27 @@
 training:
   epochs: 100
   warmup_epochs: 5
-  learning_rate: 0.0002
+  learning_rate: 0.0001
   checkpoint_dir: "checkpoints-run3"
   checkpoint_interval: 40
   log_interval: 40
-  batch_size: 4  # Works with embed_dim=32, AMP, and gradient checkpointing
+  batch_size: 2
   num_workers: 2
   results_dir: "results"
-  use_amp: true  # Use automatic mixed precision to save memory
+  use_amp: true
   gradient_checkpointing: false
-  # HD95 uses scipy distance transforms (~5 GB CPU RAM per val batch).
-  # Set to 0 to skip HD95 during training entirely (it still runs in test()).
-  # Set to N to compute HD95 every N epochs (e.g. 20 = every 20 epochs).
   hd95_interval: 0
 
 device: "cuda"
+
+# Augmentation is applied on GPU inside the training loop, not in the DataLoader.
+# This avoids torchio's CPU SimpleITK resampling (~2-10s/subject) and runs in ~0.05s/batch.
+augmentation:
+  enabled: true
+  flip_prob: 0.4         # free on GPU
+  affine_prob: 0.2       # rotation/translation, ~0.01s on GPU vs ~4s on CPU
+  affine_degrees: 15
+  bias_field_prob: 0.2   # MRI intensity inhomogeneity simulation
 
 data:
   train_dir: "data/processed/brats/train"
@@ -24,26 +30,11 @@ data:
   modality_order: ["flair", "t1", "t1ce", "t2"]
   pin_memory: true
   shuffle_train: true
-  # transform:
-  #   prob: 0.2   # probability
-  #   rotate: 20  # degrees
-  #   elastic: 7  # num control points
-  transform:
-    # ElasticDeformation: most expensive (~15-25s/sample on CPU), use low prob
-    # RandomAffine: moderately expensive (~3-6s/sample), medium prob
-    # BiasField: cheap (~1-2s/sample), medium-high prob
-    # Flips: free, moderate prob
-    elastic_prob: 0.1
-    elastic_control_points: 7
-    affine_prob: 0.2
-    affine_degrees: 15
-    bias_field_prob: 0.2
-    flip_prob: 0.2
 
 model:
   in_channels: 155
   num_classes: 4
-  embed_dim: 32  # Reduced from 48 to fit in H100 memory with batch_size=4
+  embed_dim: 32
   window_size: 7
   patch_size: 4
 
