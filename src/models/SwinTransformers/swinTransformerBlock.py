@@ -71,9 +71,12 @@ class SwinTransformerBlock(nn.Module):
         
         # Cyclic shift
         if self.shift_size > 0:
+            # shift the feature map to the left and up by shift_size, so that the windows will be shifted by shift_size.
+            # This allows the model to capture interactions between neighboring windows in the next attention layer.
             shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
             # Use cached mask; create and cache if not seen this (Hp, Wp) before
             cache_key = (Hp, Wp)
+            # will be cached for every forward pass except the first forward pass with a new (Hp, Wp) size, which only happens when the input spatial dimensions change.
             if cache_key not in self._attn_mask_cache:
                 self._attn_mask_cache[cache_key] = self.create_mask(Hp, Wp).to(x.device)
             attn_mask = self._attn_mask_cache[cache_key]
@@ -110,6 +113,8 @@ class SwinTransformerBlock(nn.Module):
         
         return x
     
+    # prevent attention between tokens that are not neighbours in the original feature map, which would happen after the cyclic shift. 
+    # This is done by assigning a large negative value to the attention scores of non-neighbouring tokens, so that after softmax they become zero and do not contribute to the output.
     def create_mask(self, H, W):
         """
         Create attention mask for SW-MSA.
@@ -123,6 +128,9 @@ class SwinTransformerBlock(nn.Module):
         """
         # Calculate attention mask for SW-MSA
         img_mask = torch.zeros((1, H, W, 1))  # 1 H W 1
+        # slice() is like range() but not a list, it creates a slice object that can be used to index tensors. 
+        # Here we create 3 slices for height and width: one for the first part of the feature map, one for the middle part (after the shift), and one for the last part (after the shift).
+        # The cnt variable is used to assign a unique value to each region of the feature map, so that tokens in the same region will have the same value and tokens in different regions will have different values.
         h_slices = (slice(0, -self.window_size),
                     slice(-self.window_size, -self.shift_size),
                     slice(-self.shift_size, None))
@@ -137,6 +145,8 @@ class SwinTransformerBlock(nn.Module):
         
         mask_windows = window_partition(img_mask, self.window_size)  # nW, window_size, window_size, 1
         mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
+        # unsqueeze adds dimensions for broadcasting: nW, 1, window_size*window_size and nW, window_size*window_size, 1. 
+        # subtracting them means comparing every token in the window to every other token: if they are in the same region (same value) then 0, otherwise non-zero.
         attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
         attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
         
