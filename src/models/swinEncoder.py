@@ -80,11 +80,11 @@ class PatchMerging(nn.Module):
         x = x.view(B, H, W, C)
         
         # Partition into 2x2 patches and concatenate
-        x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C
-        x1 = x[:, 1::2, 0::2, :]  # B H/2 W/2 C
-        x2 = x[:, 0::2, 1::2, :]  # B H/2 W/2 C
-        x3 = x[:, 1::2, 1::2, :]  # B H/2 W/2 C
-        x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C
+        x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C # top-left
+        x1 = x[:, 1::2, 0::2, :]  # B H/2 W/2 C # bottom-left
+        x2 = x[:, 0::2, 1::2, :]  # B H/2 W/2 C # top-right
+        x3 = x[:, 1::2, 1::2, :]  # B H/2 W/2 C # bottom-right
+        x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C # local concatenation of 4 patches
         x = x.view(B, -1, 4 * C)  # B H/2*W/2 4*C
         
         x = self.norm(x)
