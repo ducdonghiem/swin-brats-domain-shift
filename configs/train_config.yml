@@ -34,8 +34,8 @@ data:
 model:
   in_channels: 155
   num_classes: 4
-  embed_dim: 32       # initial embedding dim, default is 48, only used in PatchPartition
-  window_size: 7
+  embed_dim: 48       # initial embedding dim, default is 48, only used in PatchPartition
+  window_size: 7      # default is 7, used in SwinTransformerBlock (7x7 window for local attention)
   patch_size: 4       # default is 4 (3x4x4 -> 1 patch), only used in PatchPartition
   C: 96              # the C parameter in the paper, default is 96, used in SwinTransformerBlock (96->192->384->768)
 
