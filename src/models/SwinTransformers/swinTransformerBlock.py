@@ -62,7 +62,7 @@ class SwinTransformerBlock(nn.Module):
         x = self.norm1(x)
         x = x.view(B, H, W, C)
         
-        # Pad feature maps to multiples of window size
+        # Pad feature maps to multiples of window size (if input image is 224*224 (56->28->14->7), then there is no padding)
         pad_l = pad_t = 0
         pad_r = (self.window_size - W % self.window_size) % self.window_size
         pad_b = (self.window_size - H % self.window_size) % self.window_size
@@ -142,7 +142,7 @@ class SwinTransformerBlock(nn.Module):
         
         return attn_mask
 
-
+# drop the entire f(x) in the residual x = x + f(x) with probability drop_prob, during training. Prevents deep networks from overfitting.
 class DropPath(nn.Module):
     """
     Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).

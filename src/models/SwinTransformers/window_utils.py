@@ -1,4 +1,5 @@
 
+# helper func before window attention. Basically reshape, ensure that 49 local "tokens" in a window attention. If 56*56*C then there are 8*8 windows.
 def window_partition(x, window_size):
     """
     Partition the input into non-overlapping windows.
@@ -15,7 +16,7 @@ def window_partition(x, window_size):
     windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
     return windows
 
-
+# reverse of above, reshape back to original feature map
 def window_reverse(windows, window_size, H, W):
     """
     Merge windows back to feature map.
