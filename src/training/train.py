@@ -78,7 +78,8 @@ if __name__ == "__main__":
         num_classes=train_config['model']['num_classes'],
         embed_dim=train_config['model']['embed_dim'],
         window_size=train_config['model']['window_size'],
-        patch_size=train_config['model']['patch_size']
+        patch_size=train_config['model']['patch_size'],
+        C=train_config['model']['C'],
     )
 
     total_params = sum(p.numel() for p in model.parameters())

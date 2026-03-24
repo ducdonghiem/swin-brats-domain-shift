@@ -153,7 +153,7 @@ class SwinDecoderStage(nn.Module):
             x = block(x, H, W)
         return x
 
-
+# unused. Ignore.
 class SwinDecoder(nn.Module):
     """
     Swin Transformer Decoder with 3 stages and patch expanding.

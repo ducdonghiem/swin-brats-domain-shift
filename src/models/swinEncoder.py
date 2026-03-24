@@ -152,6 +152,7 @@ class SwinEncoderStage(nn.Module):
         return x
 
 
+# unused. Ignore this class. The SwinUNet architecture uses the SwinEncoderStage and PatchMerging layers directly in the SwinEncoder.
 class SwinEncoder(nn.Module):
     """
     Swin Transformer Encoder with patch partition and 3 stages.

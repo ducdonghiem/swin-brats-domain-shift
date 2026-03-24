@@ -35,13 +35,14 @@ class SwinUNet(nn.Module):
         patch_size (int): Patch size for initial partition. Default: 4
     """
     
-    def __init__(self, in_channels=3, num_classes=4, embed_dim=48, window_size=7, patch_size=4):
+    def __init__(self, in_channels=3, num_classes=4, embed_dim=48, window_size=7, patch_size=4, C=96):
         super().__init__()
         
         self.in_channels = in_channels
         self.num_classes = num_classes
         self.embed_dim = embed_dim
         self.window_size = window_size
+        self.C = C
         
         # ============ ENCODER ============
         # Patch Partition: (B, 3, 224, 224) -> (B, 56*56, 48)
@@ -52,54 +53,54 @@ class SwinUNet(nn.Module):
         )
         
         # Linear projection: 48 -> 96
-        self.linear_proj = nn.Linear(embed_dim, 96)
+        self.linear_proj = nn.Linear(embed_dim, C)
         
         # Encoder Stage 1: 56x56x96, heads=3
-        self.encoder_stage1 = SwinEncoderStage(dim=96, num_heads=3, window_size=window_size)
-        self.patch_merging1 = PatchMerging(dim=96)
+        self.encoder_stage1 = SwinEncoderStage(dim=C, num_heads=3, window_size=window_size)
+        self.patch_merging1 = PatchMerging(dim=C)
         
         # Encoder Stage 2: 28x28x192, heads=6
-        self.encoder_stage2 = SwinEncoderStage(dim=192, num_heads=6, window_size=window_size)
-        self.patch_merging2 = PatchMerging(dim=192)
+        self.encoder_stage2 = SwinEncoderStage(dim=2*C, num_heads=6, window_size=window_size)
+        self.patch_merging2 = PatchMerging(dim=2*C)
         
         # Encoder Stage 3: 14x14x384, heads=12
-        self.encoder_stage3 = SwinEncoderStage(dim=384, num_heads=12, window_size=window_size)
-        self.patch_merging3 = PatchMerging(dim=384)
+        self.encoder_stage3 = SwinEncoderStage(dim=4*C, num_heads=12, window_size=window_size)
+        self.patch_merging3 = PatchMerging(dim=4*C)
         
         # ============ BOTTLENECK ============
         # 7x7x768, heads=24
-        self.bottleneck = Bottleneck(dim=768, num_heads=24, window_size=window_size)
+        self.bottleneck = Bottleneck(dim=8*C, num_heads=24, window_size=window_size)
         
         # ============ DECODER ============
         # Decoder Stage 1: 7x7x768 -> 14x14x384
-        self.patch_expanding1 = PatchExpanding(dim=768)
+        self.patch_expanding1 = PatchExpanding(dim=8*C)
         self.skip_connection1 = SkipConnection(
-            in_channels_encoder=384,
-            in_channels_decoder=384,
-            out_channels=384
+            in_channels_encoder=4*C,
+            in_channels_decoder=4*C,
+            out_channels=4*C
         )
-        self.decoder_stage1 = SwinDecoderStage(dim=384, num_heads=12, window_size=window_size)
+        self.decoder_stage1 = SwinDecoderStage(dim=4*C, num_heads=12, window_size=window_size)
         
         # Decoder Stage 2: 14x14x384 -> 28x28x192
-        self.patch_expanding2 = PatchExpanding(dim=384)
+        self.patch_expanding2 = PatchExpanding(dim=4*C)
         self.skip_connection2 = SkipConnection(
-            in_channels_encoder=192,
-            in_channels_decoder=192,
-            out_channels=192
+            in_channels_encoder=2*C,
+            in_channels_decoder=2*C,
+            out_channels=2*C
         )
-        self.decoder_stage2 = SwinDecoderStage(dim=192, num_heads=6, window_size=window_size)
+        self.decoder_stage2 = SwinDecoderStage(dim=2*C, num_heads=6, window_size=window_size)
         
         # Decoder Stage 3: 28x28x192 -> 56x56x96
-        self.patch_expanding3 = PatchExpanding(dim=192)
+        self.patch_expanding3 = PatchExpanding(dim=2*C)
         self.skip_connection3 = SkipConnection(
-            in_channels_encoder=96,
-            in_channels_decoder=96,
-            out_channels=96
+            in_channels_encoder=C,
+            in_channels_decoder=C,
+            out_channels=C
         )
-        self.decoder_stage3 = SwinDecoderStage(dim=96, num_heads=3, window_size=window_size)
+        self.decoder_stage3 = SwinDecoderStage(dim=C, num_heads=3, window_size=window_size)
         
         # Final Patch Expanding: 56x56x96 -> 224x224x96
-        self.final_expanding = FinalPatchExpanding(dim=96)
+        self.final_expanding = FinalPatchExpanding(dim=C)
     
     def forward(self, x):
         """
@@ -146,10 +147,10 @@ class SwinUNet(nn.Module):
         H, W = H * 2, W * 2  # Now 14x14
 
         # Skip connection BEFORE transformer blocks
-        x = x.view(-1, H, W, 384).permute(0, 3, 1, 2)          # (B, 384, 14, 14)
-        enc3_img = enc3.view(-1, H, W, 384).permute(0, 3, 1, 2) # (B, 384, 14, 14)
+        x = x.view(-1, H, W, 4*self.C).permute(0, 3, 1, 2)          # (B, 384, 14, 14)
+        enc3_img = enc3.view(-1, H, W, 4*self.C).permute(0, 3, 1, 2) # (B, 384, 14, 14)
         x = self.skip_connection1(enc3_img, x)                   # (B, 384, 14, 14)
-        x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 384)  # (B, 14*14, 384)
+        x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 4*self.C)  # (B, 14*14, 384)
 
         # Transformer blocks now attend to fused encoder+decoder features
         x = self.decoder_stage1(x, H, W)  # (B, 14*14, 384)
@@ -159,10 +160,10 @@ class SwinUNet(nn.Module):
         H, W = H * 2, W * 2  # Now 28x28
 
         # Skip connection BEFORE transformer blocks
-        x = x.view(-1, H, W, 192).permute(0, 3, 1, 2)          # (B, 192, 28, 28)
-        enc2_img = enc2.view(-1, H, W, 192).permute(0, 3, 1, 2) # (B, 192, 28, 28)
+        x = x.view(-1, H, W, 2*self.C).permute(0, 3, 1, 2)          # (B, 192, 28, 28)
+        enc2_img = enc2.view(-1, H, W, 2*self.C).permute(0, 3, 1, 2) # (B, 192, 28, 28)
         x = self.skip_connection2(enc2_img, x)                   # (B, 192, 28, 28)
-        x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 192)  # (B, 28*28, 192)
+        x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 2*self.C)  # (B, 28*28, 192)
 
         # Transformer blocks now attend to fused encoder+decoder features
         x = self.decoder_stage2(x, H, W)  # (B, 28*28, 192)
@@ -172,10 +173,10 @@ class SwinUNet(nn.Module):
         H, W = H * 2, W * 2  # Now 56x56
 
         # Skip connection BEFORE transformer blocks
-        x = x.view(-1, H, W, 96).permute(0, 3, 1, 2)           # (B, 96, 56, 56)
-        enc1_img = enc1.view(-1, H, W, 96).permute(0, 3, 1, 2)  # (B, 96, 56, 56)
+        x = x.view(-1, H, W, self.C).permute(0, 3, 1, 2)           # (B, 96, 56, 56)
+        enc1_img = enc1.view(-1, H, W, self.C).permute(0, 3, 1, 2)  # (B, 96, 56, 56)
         x = self.skip_connection3(enc1_img, x)                   # (B, 96, 56, 56)
-        x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, 96)  # (B, 56*56, 96)
+        x = x.permute(0, 2, 3, 1).contiguous().view(-1, H * W, self.C)  # (B, 56*56, 96)
 
         # Transformer blocks now attend to fused encoder+decoder features
         x = self.decoder_stage3(x, H, W)  # (B, 56*56, 96)

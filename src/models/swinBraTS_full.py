@@ -50,7 +50,8 @@ class SwinBraTS(nn.Module):
         num_classes=4,
         embed_dim=48,
         window_size=7,
-        patch_size=4
+        patch_size=4,
+        C=96
     ):
         super(SwinBraTS, self).__init__()
         
@@ -75,7 +76,8 @@ class SwinBraTS(nn.Module):
             num_classes=num_classes,
             embed_dim=embed_dim,
             window_size=window_size,
-            patch_size=patch_size
+            patch_size=patch_size,
+            C=C
         )
         
         # ============ RECONSTRUCTION BLOCK ============
