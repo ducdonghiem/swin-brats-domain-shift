@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-
+# Hybrid CNN-Transformer fusion
 class SkipConnection(nn.Module):
     """
     Skip connection module for SwinBraTS encoder-decoder fusion.

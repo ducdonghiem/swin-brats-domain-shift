@@ -38,6 +38,8 @@ model:
   window_size: 7      # default is 7, used in SwinTransformerBlock (7x7 window for local attention)
   patch_size: 4       # default is 4 (3x4x4 -> 1 patch), only used in PatchPartition
   C: 96              # the C parameter in the paper, default is 96, used in SwinTransformerBlock (96->192->384->768)
+  hidden_channels_projection: 16     # default 8. each of the modalities is projected to this dimension (155->8) before concatenation (4*8=32) then 1*1 convolution to 3
+  hidden_channels_reconstruction: 64 # default 32. the dimension used in the reconstruction head (C=96->32), (before 1*1 convolution to 4*155)
 
 early_stopping:
   enabled: true

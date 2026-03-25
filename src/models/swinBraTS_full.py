@@ -51,7 +51,9 @@ class SwinBraTS(nn.Module):
         embed_dim=48,
         window_size=7,
         patch_size=4,
-        C=96
+        C=96,
+        hidden_channels_projection=8,
+        hidden_channels_reconstruction=32
     ):
         super(SwinBraTS, self).__init__()
         
@@ -63,7 +65,7 @@ class SwinBraTS(nn.Module):
         # Fuses 4 MRI modalities (240×240 each) into 3-channel representation (224×224)
         self.projection_block = ProjectionBlock(
             in_channels=in_channels,
-            hidden_channels=8,
+            hidden_channels=hidden_channels_projection,
             out_channels=3,
             num_modalities=4
         )
@@ -84,8 +86,8 @@ class SwinBraTS(nn.Module):
         # Upsamples from Swin decoder output back to original resolution
         # Output: (B, 4, 155, 240, 240)
         self.reconstruction_block = ReconstructionBlock(
-            in_channels=96,
-            hidden_channels=32,
+            in_channels=C,
+            hidden_channels=hidden_channels_reconstruction,
             num_classes=num_classes,
             original_depth=155
         )
@@ -116,7 +118,7 @@ class SwinBraTS(nn.Module):
         
         # ============ STEP 3: RECONSTRUCT ============
         # Input: (B, 96, 224, 224)
-        # Output: List of 4 × (B, 155, 240, 240)
+        # Output: (B, 4, 155, 240, 240)
         logits = self.reconstruction_block(features)
         
         return logits

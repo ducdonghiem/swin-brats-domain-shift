@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 from .SwinTransformers import SwinTransformerBlock
 
-
+# use convolution2D with kernel_size=patch_size and stride=patch_size to implement patch partition. 
+# This is more efficient than manually slicing the image into patches and applying a linear layer to each patch. 
+# The convolution will automatically extract non-overlapping patches and project them to the embedding dimension in one step.
 class PatchPartition(nn.Module):
     """
     Patch Partition Layer - converts image to patches and projects to embedding dimension.
@@ -48,7 +50,7 @@ class PatchPartition(nn.Module):
         
         return x, H, W
 
-
+# use linear projection to reduce the number of channels by half.
 class PatchMerging(nn.Module):
     """
     Patch Merging Layer - downsamples by 2x and increases channels by 2x.
@@ -87,6 +89,7 @@ class PatchMerging(nn.Module):
         x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C # local concatenation of 4 patches
         x = x.view(B, -1, 4 * C)  # B H/2*W/2 4*C
         
+        # norm first then linear projection.
         x = self.norm(x)
         x = self.reduction(x)  # B H/2*W/2 2*C
         

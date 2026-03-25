@@ -80,6 +80,8 @@ if __name__ == "__main__":
         window_size=train_config['model']['window_size'],
         patch_size=train_config['model']['patch_size'],
         C=train_config['model']['C'],
+        hidden_channels_projection=train_config['model']['hidden_channels_projection'],
+        hidden_channels_reconstruction=train_config['model']['hidden_channels_reconstruction']
     )
 
     total_params = sum(p.numel() for p in model.parameters())
