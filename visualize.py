@@ -287,15 +287,18 @@ def main():
         print(f"Checkpoint not found: {checkpoint_path}")
         sys.exit(1)
 
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+
     model = SwinBraTS(
         in_channels=config['model']['in_channels'],
         num_classes=config['model']['num_classes'],
         embed_dim=config['model']['embed_dim'],
         window_size=config['model']['window_size'],
         patch_size=config['model']['patch_size'],
+        C=config['model']['C'],
+        hidden_channels_projection=config['model']['hidden_channels_projection'],
+        hidden_channels_reconstruction=config['model']['hidden_channels_reconstruction'],
     )
-
-    checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     model.eval()
