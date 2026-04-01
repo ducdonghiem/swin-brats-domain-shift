@@ -46,7 +46,7 @@ class SwinTransformerBlock(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = MLP(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
-        # Cache for attention mask — recomputed only when spatial dims change
+        # Cache for attention mask - recomputed only when spatial dims change
         self._attn_mask_cache = {}  # key: (H, W) -> mask tensor
     
     def forward(self, x, H, W):

@@ -19,8 +19,8 @@ class BraTSLoss(nn.Module):
         prediction: (Batch, 4, 155, 240, 240)
         target: (Batch, 155, 240, 240) with values {0, 1, 2, 4}
         """
-        # CRITICAL FIX: Remap label 4 to 3 so it matches the 4th channel of prediction
-        # We do this on a clone to avoid corrupting the original metadata
+        # Remap label 4 to 3 so it matches the 4th channel of prediction
+        # Use clone to avoid corrupting the original metadata
         target_remapped = target.clone()
         target_remapped[target == 4] = 3
         

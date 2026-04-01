@@ -17,12 +17,12 @@ arrays = {}
 for f in files:
     path = os.path.join(folder, f)
     img = nib.load(path)
-    data = img.get_fdata()          # convert to numpy float64 array
+    data = img.get_fdata()  # convert to numpy float64 array
     arrays[f] = data
     print(f"{f}: shape = {data.shape}, dtype = {data.dtype}")
 
 # -------------------------
-# Visualization (simple)
+# Visualization
 # -------------------------
 
 # pick one modality to visualize (e.g., FLAIR)

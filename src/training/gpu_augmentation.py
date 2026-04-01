@@ -1,14 +1,11 @@
 """
-GPU-based augmentation for BraTS training using pure PyTorch.
-
-Avoids torchio (CPU SimpleITK, ~2-10s/subject) and MONAI dict transforms
-(unbatched — expect (C, spatial...) not (B, C, spatial...)).
+GPU-based augmentation using PyTorch.
 
 All ops run on already-loaded GPU tensors using torch.nn.functional.grid_sample,
-which natively supports batched (B, C, D, H, W) input. Total cost: <50ms/batch.
+which natively supports batched (B, C, D, H, W) input.
 
-Spatial transforms (flip, affine rotation) are applied JOINTLY to all modalities
-and the mask in a single grid_sample call — guaranteeing identical deformation.
+Spatial transforms (flip, affine rotation) are applied jointly to all modalities
+and the mask in a single grid_sample call to ensure identical transformations.
 
 Bias field is implemented natively in PyTorch via a random low-order polynomial
 evaluated on a spatial grid, applied to modalities only (not the mask).
@@ -24,7 +21,7 @@ class GPUAugmentation:
     Batched GPU augmentation: flip, affine rotation, MRI bias field.
 
     Args:
-        flip_prob (float): Per-axis flip probability. Default 0.5
+        flip_prob (float): Probability of applying flip. Probability is determined per axis. Default 0.5
         affine_prob (float): Probability of applying rotation. Default 0.2
         affine_degrees (float): Max rotation angle in degrees. Default 15
         bias_field_prob (float): Probability of bias field per modality. Default 0.2
@@ -52,8 +49,8 @@ class GPUAugmentation:
     def __call__(self, modalities, labels):
         """
         Args:
-            modalities: list of 4 tensors, each (B, D, H, W) float32 on GPU
-            labels:     (B, D, H, W) int64 on GPU
+            modalities: list of 4 tensors, each (B, D, H, W) float32
+            labels:     (B, D, H, W) int64
 
         Returns:
             modalities: augmented list of 4 tensors, each (B, D, H, W) float32
@@ -67,7 +64,7 @@ class GPUAugmentation:
         vol = torch.stack(modalities, dim=1)           # (B, 4, D, H, W)
         vol = torch.cat([vol, mask_float], dim=1)      # (B, 5, D, H, W)
 
-        # ── Flip ──────────────────────────────────────────────────────────────
+        # Flips
         # Independent per-sample flip along H (axis 3) and D (axis 2)
         for spatial_axis in [2, 3]:
             flip_mask = torch.rand(B, device=self.device) < self.flip_prob
@@ -75,7 +72,7 @@ class GPUAugmentation:
                 if flip_mask[b]:
                     vol[b] = vol[b].flip(spatial_axis - 1)  # per-item axes: (C,D,H,W)
 
-        # ── Affine rotation (in-plane H×W only) ───────────────────────────────
+        # Affine rotation (in-plane H×W only)
         # Rotate in the H×W plane independently per sample.
         # D (depth) is not rotated — it represents axial slices and our model
         # treats it as a channel dimension, so only in-plane coherence matters.
@@ -108,11 +105,11 @@ class GPUAugmentation:
                 if affine_mask[b]:
                     vol[b] = rotated[b].view(5, D, H, W)
 
-        # ── Unstack ───────────────────────────────────────────────────────────
+        # Unstack
         mod_vols  = [vol[:, i] for i in range(4)]   # list of (B, D, H, W)
         mask_vol  = vol[:, 4].round().long()          # (B, D, H, W) int64
 
-        # ── Bias field (modalities only) ──────────────────────────────────────
+        # Bias field
         aug_modalities = []
         for mod in mod_vols:
             if torch.rand(1).item() < self.bias_field_prob:
@@ -123,8 +120,7 @@ class GPUAugmentation:
 
     def _apply_bias_field(self, vol):
         """
-        Smooth multiplicative bias field via random polynomial over H×W grid.
-        (B, D, H, W) -> (B, D, H, W). Pure PyTorch, <1ms on GPU.
+        Smooth multiplicative bias field via random polynomial over HxW grid.
         """
         B, D, H, W = vol.shape
         order = self.bias_field_order

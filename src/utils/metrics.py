@@ -28,19 +28,14 @@ class BraTSMetrics:
         """
         logits: (B, 4, 155, 240, 240) - can be on CPU or GPU
         ground_truth: (B, 155, 240, 240) - can be on CPU or GPU
-        compute_hd95: If False (default), skip HD95 computation entirely.
-            HD95 uses scipy.ndimage.distance_transform_edt which allocates ~6x
-            the input size in float64, plus does not release C-level memory
-            promptly between calls. On a full 3D volume (155x240x240) this
-            costs ~5 GB of CPU RAM per batch when summed over 3 regions.
-            Set to True only for final evaluation, not every training epoch.
+        compute_hd95: enable HD95 computation. default False.
 
         NOTE: For memory efficiency during validation, callers should pass CPU
         tensors. This avoids keeping large tensors on GPU alongside loss
         intermediates.
         """
-        # Work on whichever device the tensors are already on; do NOT force to
-        # self.device (caller is responsible for placement).
+        # Work on whichever device the tensors are already on
+        # do NOT force to self.device
 
         # 1. Prediction mapping: Argmax + Label Fix (0,1,2,3 -> 0,1,2,4)
         preds = torch.argmax(logits, dim=1).clone()
@@ -50,7 +45,6 @@ class BraTSMetrics:
         p_regions = self._get_brats_regions(preds)
         g_regions = self._get_brats_regions(ground_truth)
 
-        # Free large intermediate tensors as soon as possible
         del preds
 
         # 3. Compute metrics per region
@@ -71,7 +65,7 @@ class BraTSMetrics:
             dice_scores.append(d_val)
             results[f"dice_{name}"] = d_val
 
-            # HD95 — only compute when explicitly requested
+            # HD95
             if compute_hd95:
                 try:
                     h = compute_hausdorff_distance(
@@ -79,9 +73,9 @@ class BraTSMetrics:
                     )
                     h_val = float(torch.nanmean(h).cpu().item())
                 except Exception:
-                    h_val = 0.0  # Standard fallback for empty predictions
+                    h_val = 0.0  # fallback for empty predictions
             else:
-                h_val = float('nan')  # Sentinel: not computed this epoch
+                h_val = float('nan')
 
             hd95_scores.append(h_val)
             results[f"hd95_{name}"] = h_val
@@ -90,7 +84,7 @@ class BraTSMetrics:
 
         # 4. Final averages
         results["mean_dice"] = float(np.mean(dice_scores))
-        # mean_hd95 is nan during training epochs — only meaningful when compute_hd95=True
+        # mean_hd95 is nan during training epochs - only meaningful when compute_hd95=True
         valid_hd95 = [v for v in hd95_scores if not np.isnan(v)]
         results["mean_hd95"] = float(np.mean(valid_hd95)) if valid_hd95 else float('nan')
 

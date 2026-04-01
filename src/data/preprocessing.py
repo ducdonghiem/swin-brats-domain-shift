@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import nibabel as nib
 from pathlib import Path
@@ -137,7 +136,7 @@ class BraTSPreprocessor:
         
         logger.info(f"Found {len(patient_dirs)} patients")
         
-        # First, split patients into train/val/test WITHOUT loading all data
+        # First, split patients into train/val/test without loading all data
         patient_ids = [d.name for d in patient_dirs]
         
         # Handle edge cases for small datasets or zero splits
@@ -175,7 +174,7 @@ class BraTSPreprocessor:
         logger.info(f"Val patients: {len(val_ids)}")
         logger.info(f"Test patients: {len(test_ids)}")
         
-        # Convert to sets for O(1) lookup
+        # Convert to sets for faster lookup
         train_ids_set = set(train_ids)
         val_ids_set = set(val_ids)
         test_ids_set = set(test_ids)
@@ -210,7 +209,6 @@ class BraTSPreprocessor:
             self.save_patient_files(modalities_dict, mask, patient_id, output_dir)
             total_volumes[split] += 1
 
-            # Free memory (important!)
             del modalities_dict, mask
         
         logger.info("=" * 60)
