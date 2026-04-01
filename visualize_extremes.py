@@ -324,13 +324,17 @@ def main():
         msg += f", best val Dice {vd:.4f}"
     print(msg)
 
-    # ── Run inference on entire test set ──────────────────────────────────────
-    print(f"\nRunning inference on all {len(dataset)} test samples ...")
+    # ── Pass 1: run inference on entire test set, store SCORES ONLY ──────────
+    # Storing raw volumes (modalities + masks) for all 187 samples simultaneously
+    # costs ~0.29 GB × 187 ≈ 54 GB of CPU RAM → OOM.
+    # Instead we keep only scalar scores + metadata; the two extreme samples
+    # are reloaded from disk in pass 2.
+    print(f"Pass 1/2 — scoring all {len(dataset)} test samples ...")
     print(f"Ranking metric: {args.metric}\n")
 
-    records = []   # list of dicts, one per sample
+    score_records = []   # lightweight: no raw arrays
 
-    for idx in tqdm(range(len(dataset)), desc='Inference', unit='sample'):
+    for idx in tqdm(range(len(dataset)), desc='Scoring', unit='sample'):
         modalities_tuple, mask = dataset[idx]
         case_id = Path(dataset.cases[idx][0]).parent.name
 
@@ -339,23 +343,23 @@ def main():
         pred_mask       = run_inference(model, modalities_list, device, use_amp)
         scores          = volumetric_dice(gt_mask, pred_mask)
 
-        records.append({
-            'idx':        idx,
-            'case_id':    case_id,
-            'modalities': [m.numpy() for m in modalities_list],
-            'gt_mask':    gt_mask,
-            'pred_mask':  pred_mask,
-            'scores':     scores,
-            'slice_idx':  pick_best_slice(gt_mask),
+        score_records.append({
+            'idx':     idx,
+            'case_id': case_id,
+            'scores':  scores,
         })
 
-    # ── Rank and pick extremes ─────────────────────────────────────────────────
-    # Filter out samples where the ranking metric is NaN (e.g. no ET in GT)
-    valid   = [r for r in records if not np.isnan(r['scores'][args.metric])]
-    invalid = [r for r in records if     np.isnan(r['scores'][args.metric])]
+        # Explicitly delete large arrays so GC can reclaim memory
+        del modalities_tuple, modalities_list, mask, gt_mask, pred_mask
+
+    # ── Rank and identify extremes ────────────────────────────────────────────
+    valid   = [r for r in score_records
+               if not np.isnan(r['scores'][args.metric])]
+    invalid = [r for r in score_records
+               if     np.isnan(r['scores'][args.metric])]
 
     if len(invalid) > 0:
-        print(f"  Note: {len(invalid)} sample(s) skipped for ranking "
+        print(f"  Note: {len(invalid)} sample(s) excluded from ranking "
               f"(NaN {args.metric} — likely absent region in GT):")
         for r in invalid:
             print(f"    {r['case_id']}")
@@ -364,14 +368,35 @@ def main():
         print("Not enough valid samples to compare best vs. worst.")
         sys.exit(1)
 
-    ranked = sorted(valid, key=lambda r: r['scores'][args.metric])
-    worst  = ranked[0]
-    best   = ranked[-1]
+    ranked      = sorted(valid, key=lambda r: r['scores'][args.metric])
+    worst_meta  = ranked[0]
+    best_meta   = ranked[-1]
 
-    print(f"\n  Best  → {best['case_id']:30s}  {args.metric} = "
-          f"{best['scores'][args.metric]:.4f}")
-    print(f"  Worst → {worst['case_id']:30s}  {args.metric} = "
-          f"{worst['scores'][args.metric]:.4f}")
+    print(f"\n  Best  → {best_meta['case_id']:30s}  {args.metric} = "
+          f"{best_meta['scores'][args.metric]:.4f}")
+    print(f"  Worst → {worst_meta['case_id']:30s}  {args.metric} = "
+          f"{worst_meta['scores'][args.metric]:.4f}")
+
+    # ── Pass 2: reload only the two extreme samples for visualisation ─────────
+    print(f"\nPass 2/2 — reloading best and worst samples for visualisation ...")
+
+    def load_sample_for_viz(meta):
+        idx                  = meta['idx']
+        modalities_tuple, mask = dataset[idx]
+        modalities_list      = list(modalities_tuple)
+        gt_mask              = mask.numpy().astype(np.int64)
+        pred_mask            = run_inference(model, modalities_list, device, use_amp)
+        return {
+            'case_id':    meta['case_id'],
+            'modalities': [m.numpy() for m in modalities_list],
+            'gt_mask':    gt_mask,
+            'pred_mask':  pred_mask,
+            'scores':     meta['scores'],
+            'slice_idx':  pick_best_slice(gt_mask),
+        }
+
+    best  = load_sample_for_viz(best_meta)
+    worst = load_sample_for_viz(worst_meta)
 
     # ── Save comparison figure ─────────────────────────────────────────────────
     fig_path = out_dir / f"extremes_{args.metric}.png"
