@@ -8,6 +8,7 @@ from .reconstruction_block import ReconstructionBlock
 class SwinBraTS(nn.Module):
     """
     Complete end-to-end SwinBraTS model for brain tumor segmentation.
+    Connects the projection and reconstruction blocks with the UNet backbone.
     
     Args:
         in_channels (int): Input channels per modality. Default: 155

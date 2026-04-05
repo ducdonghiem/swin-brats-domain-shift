@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 from .SwinTransformers import SwinTransformerBlock
 
-# use linear projection to increase the number of channels by 2.
 class PatchExpanding(nn.Module):
     """
-    Patch Expanding Layer - upsamples by 2x and decreases channels by 2x.
+    Custom Patch Expanding Layer. Upsamples by 2x and decreases channels by 2x
+    using a linear projection.
     
     Args:
         dim (int): Number of input channels
@@ -46,11 +46,11 @@ class PatchExpanding(nn.Module):
         
         return x
 
-# use linear projection to expand to 16*C channels, then rearrange and obtain (B, C, 224, 224) from (B, 56*56, C). This is 4x upsampling.
 class FinalPatchExpanding(nn.Module):
     """
-    Final Patch Expanding Layer - performs 4x upsampling.
-    Upsamples from (B, H*W, C) to (B, C, 4H, 4W)
+    Final Patch Expanding Layer. Performs 4x upsampling using linear projection 
+    to expand to 16*C channels, then rearrange and obtain (B, C, 224, 224) from (B, 56*56, C).
+    In other words, it transforms (B, H*W, C) to (B, C, 4H, 4W).
     
     Args:
         dim (int): Number of input channels (96)

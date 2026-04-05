@@ -8,7 +8,7 @@ from .skipConnection import SkipConnection
 
 class SwinUNet(nn.Module):
     """
-    Complete Swin-UNet architecture with proper skip connections.
+    Complete Swin-UNet architecture adaptation.
     
     Architecture:
         Input: (B, 3, 224, 224)
@@ -137,10 +137,6 @@ class SwinUNet(nn.Module):
         x = self.bottleneck(x, H, W)  # (B, 7*7, 768)
         
         # ============ DECODER ============
-        # Correct order per Swin-UNet paper:
-        #   1. Patch expanding (upsample)
-        #   2. Fuse skip connection
-        #   3. Swin Transformer blocks
 
         # Decoder Stage 1: 7x7x768 -> 14x14x384
         x = self.patch_expanding1(x, H, W)  # (B, 14*14, 384)

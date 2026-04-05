@@ -1,6 +1,23 @@
 import torch.nn as nn
 
 class ReconstructionBlock(nn.Module):
+    '''
+    Custom reconstruction block adaptation for BraTS dataset.
+
+    The reconstruction block takes in the final feature map from the decoder in three stages.
+    Each stage upsamples the feature map with transposed convolutions, 
+    followed by group normalization and GELU activation. 
+    
+    Finally, it projects the features to the original number of channels with a 1x1 convolution,
+    and reshapes it to a 3D volume.
+
+    Args:
+        in_channels (int): Number of input channels from UNet. Default: 96.
+        hidden_channels (int): Number of hidden channels. Default: 32.
+        num_classes (int): Number of output classes. Default: 4.
+        original_depth (int): Original depth of the input volumes. Default: 155.
+    '''
+
     def __init__(self, in_channels=96, hidden_channels=32, num_classes=4, original_depth=155):
         super(ReconstructionBlock, self).__init__()
         self.num_classes = num_classes

@@ -1,3 +1,7 @@
+'''
+Complete pipeline script for SwinBraTS model. Includes, training loop, validation, and test evaluation.
+'''
+
 from pathlib import Path
 
 from torch.optim.lr_scheduler import CosineAnnealingLR

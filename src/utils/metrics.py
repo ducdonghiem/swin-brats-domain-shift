@@ -3,6 +3,10 @@ import numpy as np
 from monai.metrics import compute_dice, compute_hausdorff_distance
 
 class BraTSMetrics:
+    '''
+    Metrics calculator for BraTS dataset.
+    '''
+    
     def __init__(self, device="cuda"):
         self.device = device
 
@@ -35,7 +39,7 @@ class BraTSMetrics:
         intermediates.
         """
         # Work on whichever device the tensors are already on
-        # do NOT force to self.device
+        # do not force to self.device
 
         # 1. Prediction mapping: Argmax + Label Fix (0,1,2,3 -> 0,1,2,4)
         preds = torch.argmax(logits, dim=1).clone()

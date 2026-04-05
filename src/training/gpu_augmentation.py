@@ -1,16 +1,3 @@
-"""
-GPU-based augmentation using PyTorch.
-
-All ops run on already-loaded GPU tensors using torch.nn.functional.grid_sample,
-which natively supports batched (B, C, D, H, W) input.
-
-Spatial transforms (flip, affine rotation) are applied jointly to all modalities
-and the mask in a single grid_sample call to ensure identical transformations.
-
-Bias field is implemented natively in PyTorch via a random low-order polynomial
-evaluated on a spatial grid, applied to modalities only (not the mask).
-"""
-
 import torch
 import torch.nn.functional as F
 import math
@@ -18,7 +5,16 @@ import math
 
 class GPUAugmentation:
     """
-    Batched GPU augmentation: flip, affine rotation, MRI bias field.
+    GPU-based augmentation using PyTorch: flip, affine rotation, MRI bias field.
+
+    All ops run on already-loaded GPU tensors using torch.nn.functional.grid_sample,
+    which natively supports batched (B, C, D, H, W) input.
+
+    Spatial transforms (flip, affine rotation) are applied jointly to all modalities
+    and the mask in a single grid_sample call to ensure identical transformations.
+
+    Bias field is implemented natively in PyTorch via a random low-order polynomial
+    evaluated on a spatial grid, applied to modalities only (not the mask).
 
     Args:
         flip_prob (float): Probability of applying flip. Probability is determined per axis. Default 0.5
@@ -72,9 +68,9 @@ class GPUAugmentation:
                 if flip_mask[b]:
                     vol[b] = vol[b].flip(spatial_axis - 1)  # per-item axes: (C,D,H,W)
 
-        # Affine rotation (in-plane H×W only)
-        # Rotate in the H×W plane independently per sample.
-        # D (depth) is not rotated — it represents axial slices and our model
+        # Affine rotation (in-plane HxW only)
+        # Rotate in the HxW plane independently per sample.
+        # D (depth) is not rotated - it represents axial slices and our model
         # treats it as a channel dimension, so only in-plane coherence matters.
         affine_mask = torch.rand(B, device=self.device) < self.affine_prob
         if affine_mask.any():

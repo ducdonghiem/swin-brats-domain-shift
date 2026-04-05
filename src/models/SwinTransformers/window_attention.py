@@ -4,7 +4,7 @@ import torch.nn as nn
 
 class WindowAttention(nn.Module):
     """
-    Window-based Multi-head Self-Attention (W-MSA) module.
+    Window-based Multi-head Self-Attention (W-MSA) module. Implementation sourced from original author.
     
     Args:
         dim (int): Number of input channels
@@ -36,8 +36,9 @@ class WindowAttention(nn.Module):
         
         # uses broadcasting to find the distance between every pair. The values range from -6 to +6 for 7*7 window.
         relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
-        # relative_position_index is a 49*49 matrix where each entry is an ID between 0 and 168 (there are 13*13 different relative positions in a 7*7 window). 
-        # For example, the entry at (0, 48) corresponds to the relative position of the top-left token and the bottom-right token in the window, which is (-6, -6) and gets mapped to an ID of 0. 
+        
+        # relative_position_index is a `window_size`*`window_size` matrix where each entry is an ID between 0 and the number of relative positions.
+        # For a 7x7 window, the entry at (0, 48) corresponds to the relative position of the top-left token and the bottom-right token in the window, which is (-6, -6) and gets mapped to an ID of 0. 
         # The entry at (48, 0) corresponds to the relative position of the bottom-right token and the top-left token, which is (6, 6) and gets mapped to an ID of 168. 
         # The entry at (24, 24) corresponds to the relative position of the center token with itself, which is (0, 0) and gets mapped to an ID of 84.
         # This ID represents the relative position of the two tokens in the window, and is used to look up the relative position bias from the table.
@@ -71,7 +72,7 @@ class WindowAttention(nn.Module):
         
         # Generate Q, K, V
         qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple). Shape: (Batch*num_windows, num_heads, 49, head_dim)
+        q, k, v = qkv[0], qkv[1], qkv[2]
         
         # Scale query
         q = q * self.scale

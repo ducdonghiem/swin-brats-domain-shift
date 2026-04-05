@@ -11,12 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 class MRIDataset(tio.SubjectsDataset):
-    def __init__(self, data_dir=None, modalities=["flair", "t1", "t1ce", "t2"], transforms=None):
+    '''
+    Custom Dataset class for loading MRI volumes to model.
+    '''
+
+    def __init__(self, data_dir, modalities=["flair", "t1", "t1ce", "t2"], transforms=None):
         """
         Args:
-            data_dir (str): split directory containing images/ and masks/ subfolders
-            modalities (list(str)): ordered list of modality names (matches filenames saved by preprocessor)
-            transforms (list[tuple(transform, prob)]): optional list of (transform, probability) pairs
+            data_dir (str): split directory containing images/ and masks/ subfolders.
+            modalities (list(str)): ordered list of modality names (matches filenames saved by preprocessor). Default: ["flair", "t1", "t1ce", "t2"].
+            transforms (list[tuple(transform, prob)], optional): optional list of (transform, probability) pairs. Default: None.
         """
         self.modalities = modalities
         self.transforms = transforms

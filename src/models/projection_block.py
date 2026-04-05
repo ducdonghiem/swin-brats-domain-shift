@@ -3,6 +3,14 @@ import torch.nn as nn
 
 
 class ModalityCNN(nn.Module):
+    '''
+    Adapted CNN for the `ProjectionBlock` that downsamples each modality separately before concatenation.
+
+    Args:
+        in_channels (int): Number of input channels. Default: 155.
+        hidden_channels (int): Number of output channels. Default: 8.
+    '''
+    
     def __init__(self, in_channels=155, hidden_channels=8):
         super(ModalityCNN, self).__init__()
         
@@ -29,6 +37,13 @@ class ModalityCNN(nn.Module):
 
 
 class ProjectionBlock(nn.Module):
+    '''
+    Custom projection block adaptation for BraTS dataset. 
+    
+    Data is stored as four 3D volumes but must be learned as a single input.
+    The projection block downsamples each modality volume and fuses them with a 1x1 convolution, producing a 2D feature map with the same spatial dimensions as the input image and a reduced number of channels (C=8). This is then fed into the SwinUNet encoder as a single input.
+    '''
+
     def __init__(self, in_channels=155, hidden_channels=8, out_channels=3, num_modalities=4):
         super(ProjectionBlock, self).__init__()
         self.num_modalities = num_modalities
@@ -39,9 +54,9 @@ class ProjectionBlock(nn.Module):
             for _ in range(num_modalities)
         ])
         
-        # Fusion: Concatenate all modalities → out_channels
-        # No activation after fusion — the Swin PatchPartition expects
-        # unrestricted values; clipping negatives here would destroy signal.
+        # Fusion: Concatenate all modalities
+        # No activation after fusion - the Swin PatchPartition expects
+        # unrestricted values. clipping negatives here would destroy signal.
         self.fusion_conv = nn.Conv2d(
             num_modalities * hidden_channels,
             out_channels,
@@ -55,5 +70,5 @@ class ProjectionBlock(nn.Module):
         processed = [self.modality_cnns[i](mod) for i, mod in enumerate(modalities)]
         concatenated = torch.cat(processed, dim=1)  # (B, 4*hidden, 224, 224)
         fused = self.fusion_norm(self.fusion_conv(concatenated))  # (B, out_channels, 224, 224)
-        # No ReLU here — preserve full signed range for SwinUNet input
+        # No ReLU - preserve full signed range for UNet input
         return fused

@@ -2,14 +2,18 @@ import torch
 import torch.nn as nn
 from .SwinTransformers import SwinTransformerBlock
 
-# use convolution2D with kernel_size=patch_size and stride=patch_size to implement patch partition. 
-# This is more efficient than manually slicing the image into patches and applying a linear layer to each patch. 
-# The convolution will automatically extract non-overlapping patches and project them to the embedding dimension in one step.
 class PatchPartition(nn.Module):
     """
-    Patch Partition Layer - converts image to patches and projects to embedding dimension.
+    Patch Partition Layer adaptation. Converts image to patches and projects to embedding dimension C.
+    
+    Uses convolution2D with `kernel_size=patch_size` and `stride=patch_size`. 
+    This is more efficient than manually slicing the image into patches and 
+    applying a linear layer to each patch. The convolution will automatically 
+    extract non-overlapping patches and project them to the embedding dimension in one step.
+
     Input: (B, 3, 224, 224)
     Output: (B, 56*56, 48) -> after first Swin block: (B, 56*56, 96)
+
     
     Args:
         in_channels (int): Number of input image channels. Default: 3
@@ -50,10 +54,10 @@ class PatchPartition(nn.Module):
         
         return x, H, W
 
-# use linear projection to reduce the number of channels by half.
 class PatchMerging(nn.Module):
     """
-    Patch Merging Layer - downsamples by 2x and increases channels by 2x.
+    Patch Merging Layer adaptation. Downsamples by 2x and increases channels by 2x 
+    using a linear projection.
     
     Args:
         dim (int): Number of input channels
@@ -89,7 +93,7 @@ class PatchMerging(nn.Module):
         x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C # local concatenation of 4 patches
         x = x.view(B, -1, 4 * C)  # B H/2*W/2 4*C
         
-        # norm first then linear projection.
+        # normalize and apply linear projection.
         x = self.norm(x)
         x = self.reduction(x)  # B H/2*W/2 2*C
         

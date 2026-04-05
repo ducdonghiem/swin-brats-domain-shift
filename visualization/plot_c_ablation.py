@@ -2,8 +2,11 @@
 Visualization of ablation study on channel dimension C hyperparameter.
 
 Usage:
-    python plot_c_ablation.py                                   # saves plot_c_ablation.pdf + plot_c_ablation.png
-    python plot_c_ablation.py --out results/C=24/viz/ablation   # custom output path (no extension)
+    python plot_c_ablation.py                           # saves plot_c_ablation.pdf + plot_c_ablation.png
+    python plot_c_ablation.py --out results/c_ablation    # custom output path (no extension)
+
+Outputs:
+    c_ablation.png: Subplot figure showing metrics across values of C.
 """
 
 import argparse
@@ -54,7 +57,6 @@ plt.rcParams.update({
 })
 
 
-# Helper: line plot panel
 def plot_line_panel(ax, x, metric_dict, ylabel, title, best_fn):
     """
     Plot one metric (Dice or HD95) for all regions against x (C or params).
@@ -65,7 +67,7 @@ def plot_line_panel(ax, x, metric_dict, ylabel, title, best_fn):
         metric_dict: dict mapping region name -> list of values
         ylabel:      y-axis label string
         title:       panel title string
-        best_fn:     np.argmax or np.argmin — used to draw the best-C guideline
+        best_fn:     np.argmax or np.argmin - used to draw the best-C guideline
     """
     x = np.array(x)
     for key in ['WT', 'TC', 'ET', 'Mean']:
@@ -88,7 +90,7 @@ def plot_line_panel(ax, x, metric_dict, ylabel, title, best_fn):
 def make_figure(c_vals, params_m, dice, hd95, out_base):
     x = np.array(c_vals)
 
-    fig, axes = plt.subplots(2, 2, figsize=(7.16, 5.5))  # IEEE two-col width
+    fig, axes = plt.subplots(2, 2, figsize=(7.16, 5.5))
     fig.subplots_adjust(hspace=0.42, wspace=0.32)
 
     # (a) Dice vs C 

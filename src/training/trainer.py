@@ -6,6 +6,9 @@ from ..utils import BraTSMetrics
 from .gpu_augmentation import GPUAugmentation
 
 class SwinTrainer():
+    '''
+    Trainer class for SwinBraTS model.
+    '''
 
     def __init__(self, model, training_loader, val_loader, loss_fn, optimizer, scheduler, config):
         '''
@@ -135,6 +138,17 @@ class SwinTrainer():
         return None
 
     def _train_epoch(self):
+        '''
+        Training loop for one epoch.
+
+        Data is extracted from the custom training data loader. 
+        Data augmentations are still applied before learning, but moved to GPU for efficiency.
+        Automatic mixed precision is also used to optimize training speed for the appropriate datatypes.
+
+        Returns:
+            avg_loss: Average training loss for the epoch.
+        '''
+        
         self.model.train()
 
         train_loss = 0.0
@@ -179,6 +193,14 @@ class SwinTrainer():
         return avg_loss
 
     def _validate_epoch(self, epoch=0):
+        '''
+        Validation loop for one epoch.
+
+        Returns:
+            avg_loss: Average validation loss for the epoch.
+            avg_metrics: Dictionary of average validation metrics for the epoch.
+        '''
+        
         self.model.eval()
 
         # Compute HD95 only every hd95_interval epochs
@@ -293,6 +315,13 @@ class SwinTrainer():
         torch.save(checkpoint, checkpoint_path)
 
     def train(self):
+        '''
+        Main training loop over epochs, including validation and checkpoints.
+
+        Returns:
+            history: Dictionary containing training and validation metrics history for all epochs
+        '''
+        
         for epoch in range(self.epochs + self.warmup_epochs):
             print(f"\nEpoch {epoch + 1}/{self.epochs + self.warmup_epochs}")
             
@@ -446,6 +475,10 @@ class SwinTrainer():
         return avg_metrics
 
     def save_loss_plot(self, results_dir):
+        '''
+        Plot the training and validation loss and save to file.
+        '''
+        
         try:
             import matplotlib
             matplotlib.use('Agg')
@@ -486,6 +519,10 @@ class SwinTrainer():
         return plot_path
 
     def save_results(self, results_dir, test_metrics=None):
+        '''
+        Save training and validation metrics history, best validation metric, and test metrics to a JSON file in `results_dir`.
+        '''
+
         import json
         from datetime import datetime
 

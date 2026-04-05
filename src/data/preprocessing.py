@@ -11,12 +11,21 @@ logger = logging.getLogger(__name__)
 
 
 class BraTSPreprocessor:
-    """Preprocesses BraTS 2021 dataset for Swin Transformer segmentation"""
+    '''
+    Custom preprocessor for BraTS dataset. Loads .nii.gz files, normalizes them, and saves as .npy files in the output directory.
+    '''
     
-    def __init__(self, data_dir, output_dir, modalities=None):
+    def __init__(self, data_dir, output_dir, modalities=['flair', 't1', 't1ce', 't2']):
+        '''
+        Args:
+            data_dir (str): Path to the BraTS2021_Training_Data folder containing patient subdirectories.
+            output_dir (str): Path where processed .npy files will be saved, organized into train/val/test splits.
+            modalities (list(str), optional): List of modality names as appears in files. Default: ['flair', 't1', 't1ce', 't2'].
+        '''
+
         self.data_dir = Path(data_dir)
         self.output_dir = Path(output_dir)
-        self.modalities = modalities or ['flair', 't1', 't1ce', 't2']
+        self.modalities = modalities
         
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.train_dir = self.output_dir / 'train'
@@ -205,7 +214,7 @@ class BraTSPreprocessor:
                 output_dir = self.test_dir
                 split = 'test'
 
-            # Save patient files (per modality)
+            # Save patient files per modality
             self.save_patient_files(modalities_dict, mask, patient_id, output_dir)
             total_volumes[split] += 1
 

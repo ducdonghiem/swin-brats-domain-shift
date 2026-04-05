@@ -2,6 +2,12 @@ import torch.nn as nn
 from monai.losses import DiceFocalLoss
 
 class BraTSLoss(nn.Module):
+    '''
+    Adapted loss function based on a combination of Dice and Focal loss.
+
+    `target` segmentation contains labels (0,1,2,4), so it is remapped to [0, 3] 
+    to match the outputs of the predication segmentation
+    '''
     def __init__(self, device="cuda"):
         super(BraTSLoss, self).__init__()
         self.main_loss = DiceFocalLoss(

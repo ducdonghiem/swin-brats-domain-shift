@@ -4,7 +4,7 @@ from .SwinTransformers import SwinTransformerBlock
 
 class Bottleneck(nn.Module):
     """
-    Bottleneck layer with 2 successive Swin Transformer blocks.
+    Bottleneck layer for UNet adaptation, with 2 successive Swin Transformer blocks.
     
     Operates at the lowest resolution: 7x7, C=768, num_heads=24
     
@@ -19,8 +19,8 @@ class Bottleneck(nn.Module):
         drop_path (float): Stochastic depth rate. Default: 0.1
     """
     
-    def __init__(self, dim=768, num_heads=24, window_size=7, mlp_ratio=4., 
-                 qkv_bias=True, drop=0., attn_drop=0., drop_path=0.1):
+    def __init__(self, dim=768, num_heads=24, window_size=7, mlp_ratio=4.0, 
+                 qkv_bias=True, drop=0.0, attn_drop=0.0, drop_path=0.1):
         super().__init__()
         
         self.dim = dim

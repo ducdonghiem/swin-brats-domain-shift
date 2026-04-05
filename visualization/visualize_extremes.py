@@ -17,7 +17,7 @@ Usage:
 
 Output:
     results/viz/extremes_mean_dice.png
-        A figure with 2 rows (best / worst) × 5 columns
+        A figure with 2 rows (best / worst) and 5 columns:
         (FLAIR | T1ce | Ground Truth | Prediction | Overlay)
     results/viz/extremes_scores.txt
         Full ranked list of all test samples and their Dice scores
@@ -138,7 +138,7 @@ def save_comparison_figure(
     out_path: Path,
 ):
     """
-    Save a 2-row × 5-column comparison figure.
+    Save a 2-row x 5-column comparison figure.
 
     Each dict must have keys:
         case_id      str
@@ -324,15 +324,13 @@ def main():
         msg += f", best val Dice {vd:.4f}"
     print(msg)
 
-    # ── Pass 1: run inference on entire test set, store SCORES ONLY ──────────
-    # Storing raw volumes (modalities + masks) for all 187 samples simultaneously
-    # costs ~0.29 GB × 187 ≈ 54 GB of CPU RAM → OOM.
-    # Instead we keep only scalar scores + metadata; the two extreme samples
-    # are reloaded from disk in pass 2.
+    # ── Pass 1: run inference on entire test set ──────────
+    # Store only scalar scores + metadata
+    # the two extreme samples are reloaded from disk in pass 2.
     print(f"Pass 1/2 — scoring all {len(dataset)} test samples ...")
     print(f"Ranking metric: {args.metric}\n")
 
-    score_records = []   # lightweight: no raw arrays
+    score_records = []
 
     for idx in tqdm(range(len(dataset)), desc='Scoring', unit='sample'):
         modalities_tuple, mask = dataset[idx]
@@ -349,7 +347,7 @@ def main():
             'scores':  scores,
         })
 
-        # Explicitly delete large arrays so GC can reclaim memory
+        # Delete large arrays to reclaim memory
         del modalities_tuple, modalities_list, mask, gt_mask, pred_mask
 
     # ── Rank and identify extremes ────────────────────────────────────────────

@@ -7,24 +7,24 @@ from .window_utils import window_partition, window_reverse
 
 class SwinTransformerBlock(nn.Module):
     """
-    Swin Transformer Block.
+    Swin Transformer Block. Implementation sourced from original author.
     
     Args:
         dim (int): Number of input channels
         num_heads (int): Number of attention heads
         window_size (int): Window size
         shift_size (int): Shift size for SW-MSA. Use 0 for W-MSA
-        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim
+        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim. Default: 4.0
         qkv_bias (bool, optional): If True, add a learnable bias to query, key, value. Default: True
         drop (float, optional): Dropout rate. Default: 0.0
         attn_drop (float, optional): Attention dropout rate. Default: 0.0
         drop_path (float, optional): Stochastic depth rate. Default: 0.0
-        act_layer (nn.Module, optional): Activation layer. Default: nn.GELU
-        norm_layer (nn.Module, optional): Normalization layer. Default: nn.LayerNorm
+        act_layer (nn.Module, optional): Activation layer. Default: `nn.GELU`
+        norm_layer (nn.Module, optional): Normalization layer. Default: `nn.LayerNorm`
     """
     
     def __init__(self, dim, num_heads, window_size=7, shift_size=0,
-                 mlp_ratio=4., qkv_bias=True, drop=0., attn_drop=0., drop_path=0.,
+                 mlp_ratio=4.0, qkv_bias=True, drop=0.0, attn_drop=0.0, drop_path=0.0,
                  act_layer=nn.GELU, norm_layer=nn.LayerNorm):
         super().__init__()
         self.dim = dim
@@ -113,11 +113,13 @@ class SwinTransformerBlock(nn.Module):
         
         return x
     
-    # prevent attention between tokens that are not neighbours in the original feature map, which would happen after the cyclic shift. 
-    # This is done by assigning a large negative value to the attention scores of non-neighbouring tokens, so that after softmax they become zero and do not contribute to the output.
     def create_mask(self, H, W):
         """
-        Create attention mask for SW-MSA.
+        Create attention mask for SW-MSA. It prevents attention between 
+        tokens that are not neighbours in the original feature map, 
+        which would happen after the cyclic shift. This is done by assigning 
+        a large negative value to the attention scores of non-neighbouring tokens, 
+        so that after softmax they become zero and do not contribute to the output.
         
         Args:
             H (int): Height of padded feature map
@@ -129,8 +131,12 @@ class SwinTransformerBlock(nn.Module):
         # Calculate attention mask for SW-MSA
         img_mask = torch.zeros((1, H, W, 1))  # 1 H W 1
         # slice() is like range() but not a list, it creates a slice object that can be used to index tensors. 
-        # Here we create 3 slices for height and width: one for the first part of the feature map, one for the middle part (after the shift), and one for the last part (after the shift).
-        # The cnt variable is used to assign a unique value to each region of the feature map, so that tokens in the same region will have the same value and tokens in different regions will have different values.
+
+        # Here we create 3 slices for height and width: one for the first part of the feature map, 
+        # one for the middle part (after the shift), and one for the last part (after the shift).
+        
+        # The cnt variable is used to assign a unique value to each region of the feature map, 
+        # so that tokens in the same region will have the same value and tokens in different regions will have different values.
         h_slices = (slice(0, -self.window_size),
                     slice(-self.window_size, -self.shift_size),
                     slice(-self.shift_size, None))
