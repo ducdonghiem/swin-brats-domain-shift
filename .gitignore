@@ -34,3 +34,5 @@ src/models/SwinBraTS.py
 
 # .log files
 *.log
+
+*.DS_STORE
