@@ -9,10 +9,8 @@ Usage:
 import argparse
 import matplotlib
 matplotlib.use('Agg')
-from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from adjustText import adjust_text
 import numpy as np
 
 # Data
