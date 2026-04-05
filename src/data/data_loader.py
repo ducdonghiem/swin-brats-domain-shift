@@ -63,8 +63,8 @@ class MRIDataset(tio.SubjectsDataset):
         .npy files shaped (H, W, D) and pass them with unsqueeze(0), torchio
         stores them as (1, H, W, D). After squeeze(0) we have (H, W, D).
 
-        Uses torch.permute (not np.transpose) to keep the result as a
-        contiguous torch.Tensor — required for torch.stack in collate_fn.
+        Uses torch.permute to keep the result as a contiguous torch.Tensor 
+        - required for torch.stack in collate_fn.
         """
         if tensor.ndim != 3:
             raise ValueError(f"Expected 3D tensor, got shape {tensor.shape}")
@@ -79,17 +79,15 @@ class MRIDataset(tio.SubjectsDataset):
             scan_type = scan_path.split('/')[-1].removesuffix('.npy')
             mod_map[scan_type] = scan_path
 
-        # FIX: t1ce and t2 keys were swapped in the original — each key must
-        # load the matching modality file.
         subject = tio.Subject(
             flair=tio.ScalarImage(tensor=torch.from_numpy(
                 self._load_volume(mod_map['flair'], np.float32)).unsqueeze(0)),
             t1=tio.ScalarImage(tensor=torch.from_numpy(
                 self._load_volume(mod_map['t1'], np.float32)).unsqueeze(0)),
             t1ce=tio.ScalarImage(tensor=torch.from_numpy(
-                self._load_volume(mod_map['t1ce'], np.float32)).unsqueeze(0)),  # was accidentally loading t2
+                self._load_volume(mod_map['t1ce'], np.float32)).unsqueeze(0)),
             t2=tio.ScalarImage(tensor=torch.from_numpy(
-                self._load_volume(mod_map['t2'], np.float32)).unsqueeze(0)),    # was accidentally loading t1ce
+                self._load_volume(mod_map['t2'], np.float32)).unsqueeze(0)),
             mask=tio.LabelMap(tensor=torch.from_numpy(
                 self._load_volume(mod_map['mask'], np.int64)).unsqueeze(0))
         )
@@ -149,6 +147,6 @@ if __name__ == "__main__":
 
     for modalities, masks in loader:
         for name, tensor in zip(dataset.modalities, modalities):
-            print(f"{name} batch shape:", tensor.shape)  # Expected: (B, 155, 240, 240)
-        print("Mask batch shape:", masks.shape)           # Expected: (B, 155, 240, 240)
+            print(f"{name} batch shape:", tensor.shape)     # Expected: (B, 155, 240, 240)
+        print("Mask batch shape:", masks.shape)             # Expected: (B, 155, 240, 240)
         break

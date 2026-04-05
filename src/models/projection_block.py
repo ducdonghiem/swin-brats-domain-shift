@@ -16,7 +16,7 @@ class ModalityCNN(nn.Module):
         self.gn_5  = nn.GroupNorm(num_groups=1, num_channels=hidden_channels)
         self.gn_3  = nn.GroupNorm(num_groups=1, num_channels=hidden_channels)
         
-        self.gelu = nn.GELU()  # GELU instead of ReLU: preserves negative values, consistent with SwinUNet
+        self.gelu = nn.GELU()
     
     def forward(self, x):
         # Conv 11×11: 240×240 → 230×230

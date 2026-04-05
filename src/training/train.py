@@ -22,12 +22,9 @@ if __name__ == "__main__":
     test_dir = Path(train_config['data']['test_dir'])
     modality_order = train_config['data']['modality_order']
 
-    # Augmentation is now applied on GPU inside the training loop (see trainer.py).
-    # The DataLoader only loads raw .npy files — no CPU transform overhead.
     train_dataset = MRIDataset(
         data_dir=train_dir,
         modalities=modality_order,
-        transforms=None   # no CPU transforms
     )
     val_dataset = MRIDataset(
         data_dir=val_dir,
@@ -99,8 +96,7 @@ if __name__ == "__main__":
     optimizer = AdamW(model.parameters(),
         lr=train_config['training']['learning_rate'])
 
-    # eta_min prevents LR from decaying all the way to 0, which causes the
-    # loss spike seen near the end of cosine annealing.
+    # eta_min prevents decay down to 0
     scheduler = CosineAnnealingLR(
         optimizer,
         T_max=train_config['training']['epochs'],

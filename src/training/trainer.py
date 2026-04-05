@@ -42,12 +42,10 @@ class SwinTrainer():
         self.checkpoint_dir = config['training']['checkpoint_dir']
         self.checkpoint_interval = config['training']['checkpoint_interval']
 
-        # HD95 is expensive (scipy float64 distance transforms, ~5 GB CPU RAM per batch).
-        # Hence compute it only every hd95_interval epochs during training, not every epoch.
+        # HD95 is expensive, so we compute only every hd95_interval epochs during training.
         self.hd95_interval = config['training'].get('hd95_interval', 0)
 
-        # GPU augmentation — applied after batch is on device, far faster than
-        # torchio CPU transforms (~0.05s vs ~2-10s per batch).
+        # GPU augmentation
         # Set augment: false in config to disable (e.g. for val/test runs).
         aug_cfg = config.get('augmentation', {})
         if aug_cfg.get('enabled', False) and self.device == 'cuda':
@@ -74,7 +72,7 @@ class SwinTrainer():
                 self.model.gradient_checkpointing_enable()
             else:
                 # Fallback: apply to all SwinEncoderStage / SwinDecoderStage / Bottleneck submodules
-                # that expose a use_checkpoint flag (standard in timm-style Swin implementations)
+                # that expose a use_checkpoint flag
                 _gc_applied = False
                 for module in self.model.modules():
                     if hasattr(module, 'use_checkpoint'):
@@ -147,7 +145,7 @@ class SwinTrainer():
             inputs = [x.to(self.device) for x in inputs]
             labels = labels.to(self.device)
 
-            # GPU augmentation — runs on already-loaded tensors, ~0.05s vs ~2-10s on CPU
+            # GPU augmentation
             if self.augmentation is not None:
                 inputs, labels = self.augmentation(inputs, labels)
 

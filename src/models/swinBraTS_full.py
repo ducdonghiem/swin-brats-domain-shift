@@ -1,19 +1,3 @@
-# import torch
-# import torch.nn as nn
-# import sys
-# from pathlib import Path
-
-# sys.path.insert(0, str(Path(__file__).parent))
-
-# try:
-#     from projection_block import ProjectionBlock
-#     from swinUNet import SwinUNet
-#     from reconstruction_block import ReconstructionBlock
-# except ImportError:
-#     from .projection_block import ProjectionBlock
-#     from .swinUNet import SwinUNet
-#     from .reconstruction_block import ReconstructionBlock
-
 import torch
 import torch.nn as nn
 from .projection_block import ProjectionBlock
@@ -24,17 +8,6 @@ from .reconstruction_block import ReconstructionBlock
 class SwinBraTS(nn.Module):
     """
     Complete end-to-end SwinBraTS model for brain tumor segmentation.
-    
-    Pipeline:
-        Input: 4 × (B, 155, 240, 240) [FLAIR, T1, T1ce, T2]
-            ↓
-        ProjectionBlock: Fuse 4 modalities → (B, 3, 224, 224)
-            ↓
-        SwinUNet Encoder/Decoder: Extract features → (B, 96, 224, 224)
-            ↓
-        ReconstructionBlock: Upsample to full resolution → 4 × (B, 155, 240, 240)
-            ↓
-        Output: 4 class-specific segmentation logits
     
     Args:
         in_channels (int): Input channels per modality. Default: 155
@@ -62,7 +35,7 @@ class SwinBraTS(nn.Module):
         self.embed_dim = embed_dim
         
         # ============ PROJECTION BLOCK ============
-        # Fuses 4 MRI modalities (240×240 each) into 3-channel representation (224×224)
+        # Fuses 4 MRI modalities (240x240 each) into 3-channel representation (224×224)
         self.projection_block = ProjectionBlock(
             in_channels=in_channels,
             hidden_channels=hidden_channels_projection,
@@ -186,23 +159,8 @@ if __name__ == "__main__":
         print("=" * 80)
         print("✓ SwinBraTS model architecture verified successfully!")
         print("=" * 80)
-        print()
-        print("Pipeline Summary:")
-        print("  4 MRI modalities (240×240)")
-        print("  ↓")
-        print("  ProjectionBlock → Fused representation (3-channel, 224×224)")
-        print("  ↓")
-        print("  SwinUNet Encoder → Feature extraction with skip connections")
-        print("  ↓")
-        print("  SwinUNet Decoder → Upsampling with skip connections")
-        print("  ↓")
-        print("  ReconstructionBlock → 4 class-specific logits (240×240)")
-        print("  ↓")
-        print("  (B, 4, 155, 240, 240) output for segmentation")
-        print()
-        print("=" * 80)
         
     except Exception as e:
-        print(f"✗ Error during forward pass: {e}")
+        print(f"Error during forward pass: {e}")
         import traceback
         traceback.print_exc()

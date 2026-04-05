@@ -15,13 +15,13 @@ training:
 device: "cuda"
 
 # Augmentation is applied on GPU inside the training loop, not in the DataLoader.
-# This avoids torchio's CPU SimpleITK resampling (~2-10s/subject) and runs in ~0.05s/batch.
+# This avoids torchio's CPU resampling.
 augmentation:
   enabled: true
-  flip_prob: 0.4         # free on GPU
-  affine_prob: 0.2       # rotation/translation, ~0.01s on GPU vs ~4s on CPU
+  flip_prob: 0.4
+  affine_prob: 0.2
   affine_degrees: 15
-  bias_field_prob: 0.2   # MRI intensity inhomogeneity simulation
+  bias_field_prob: 0.2
 
 data:
   train_dir: "data/processed/brats/train"
@@ -34,12 +34,12 @@ data:
 model:
   in_channels: 155
   num_classes: 4
-  embed_dim: 48       # initial embedding dim, default is 48, only used in PatchPartition
-  window_size: 7      # default is 7, used in SwinTransformerBlock (7x7 window for local attention)
-  patch_size: 4       # default is 4 (3x4x4 -> 1 patch), only used in PatchPartition
-  C: 96              # the C parameter in the paper, default is 96, used in SwinTransformerBlock (96->192->384->768)
-  hidden_channels_projection: 16     # default 8. each of the modalities is projected to this dimension (155->8) before concatenation (4*8=32) then 1*1 convolution to 3
-  hidden_channels_reconstruction: 64 # default 32. the dimension used in the reconstruction head (C=96->32), (before 1*1 convolution to 4*155)
+  embed_dim: 48                       # initial embedding dim, default is 48, only used in PatchPartition
+  window_size: 7                      # default is 7, used in SwinTransformerBlock (7x7 window for local attention)
+  patch_size: 4                       # default is 4 (3x4x4 -> 1 patch), only used in PatchPartition
+  C: 96                               # the C parameter in the paper, default is 96, used in SwinTransformerBlock (96->192->384->768)
+  hidden_channels_projection: 16      # default 16. each of the modalities is projected to this dimension (155->16) before concatenation (4*16=64) then 1*1 convolution to 3
+  hidden_channels_reconstruction: 64  # default 64. the dimension used in the reconstruction head (C=96->64), (before 1*1 convolution to 4*155)
 
 early_stopping:
   enabled: true
