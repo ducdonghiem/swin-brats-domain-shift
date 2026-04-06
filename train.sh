@@ -22,5 +22,10 @@ echo "Starting training. Logging to $LOG_FILE"
 # 4. Run Python and redirect output
 # 2>&1 merges error messages (stderr) into the standard output (stdout)
 # 'tee' allows you to see the output in the terminal AND save it to the file
-# python src/training/train.py "$@" 2>&1 | tee "$LOG_FILE"
 python -m src.training.train 2>&1 | tee "$LOG_FILE"
+
+# Visualize n random cases from the test set. Custom checkpoint or output dir
+python visualization/visualize.py --n 2 --checkpoint checkpoints/best_model.pth --out_dir results/viz
+
+# Visualize best and worst cases. Custom checkpoint or output dir
+python visualization/visualize_extremes.py --metric mean_dice --checkpoint checkpoints/best_model.pth --out_dir results/viz
