@@ -176,7 +176,7 @@ def make_figure(c_vals, params_m, dice, hd95, out_base):
     fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(1.05,0.8), framealpha=0.7, edgecolor='#cccccc')
 
     # Save
-    for ext in ('png'):
+    for ext in ['png']:
         path = f'{out_base}.{ext}'
         fig.savefig(path, bbox_inches='tight',
                     format=ext, dpi=200 if ext == 'png' else None)

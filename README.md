@@ -1,7 +1,13 @@
 # SwinBraTS — Brain Tumor Segmentation with Swin Transformers
  
 ![Prediction](results/C=72/viz/BraTS2021_01036_slice084.png)
-![Loss](results/C=72/loss_plot_20260326_201140.png)
+<!-- ![Loss](results/C=72/loss_plot_20260326_201140.png)
+![C-ablation](visualization/ablation_C.png) -->
+<p align="center">
+    <img src="visualization/ablation_C.png" width="48%">
+    <img src="results/C=72/loss_plot_20260326_201140.png" width="48%">
+</p>
+
  
 ---
  
