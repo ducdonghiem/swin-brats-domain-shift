@@ -124,12 +124,21 @@ myenv\Scripts\activate           # Windows
 ```bash
 pip install -r requirements.txt
 ```
+
+**3. Download and preprocess the dataset**
+
+Download BraTS 2021 Task 1 from [Kaggle](https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1) and extract it, then run:
+```bash
+python -m src.data.preprocessing \
+  --data_dir path/to/BraTS2021_Training_Data \
+  --output_dir data/processed/brats
+```
  
-**3. Configure the run**
+**4. Configure the run**
  
 Edit `configs/train_config.yml` to set your data paths, model size (`C`), batch size, and number of epochs before running.
  
-**4. Run** (all commands from the repository root)
+**5. Run** (all commands from the repository root)
  
 ```bash
 # Training, validation, test evaluation, and loss plot — all in one
