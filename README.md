@@ -1,34 +1,54 @@
-# Swin Transformer on BraTS 2021 — Domain Shift Segmentation Project
-
-## Overview
-This project evaluates how well the **Swin Transformer** architecture adapts to a **domain shift** from natural RGB images to **multi‑modal medical imaging**.  
-We use the **Swin‑T (Tiny)** variant and apply it to **brain tumor segmentation** on the **BraTS 2021** dataset.
-
-The goal is to understand:
-- how Swin behaves when shifted from 3‑channel natural images to 4‑channel MRI,
-- whether its hierarchical windowed attention still performs well in a medical context,
-- and what adaptations are required for multi‑modal 2D segmentation.
-
+# SwinBraTS — Brain Tumor Segmentation with Swin Transformers
+ 
+![Prediction](results/C=72/viz/BraTS2021_01036_slice084.png)
+![Loss](results/C=72/loss_plot_20260326_201140.png)
+ 
 ---
-
-## Dataset: BraTS 2021
-BraTS 2021 is a large medical imaging dataset focused on **glioblastoma segmentation**.
-
-Each patient case includes:
-- **Four MRI modalities**,  
-- **An expert‑annotated voxel‑wise tumor mask**,  
-- Over **1,200 patient cases**, making it suitable for training Swin‑T.
-
-Segmentation requires the model to predict a **class label for every pixel**, producing an output mask that highlights the **extracted tumor regions**.
-
-The dataset is available on Kaggle:  
-**[BraTS 2021 Task 1 Dataset](https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1/data)**
-
-Training a Swin‑T segmentation model on an **NVIDIA H100 GPU** is feasible within **<12 hours**.
-
+ 
+## Overview
+ 
+This project investigates how well the **Swin Transformer** adapts to the domain of **multi-modal medical image segmentation**.
+The Swin Transformer was designed for natural RGB images, so applying it to four-channel MRI data requires non-trivial architectural decisions around input representation, spatial resolution, and volumetric output.
+ 
+The core contribution is **SwinBraTS**, a U-Net-style encoder-decoder built around the **Swin Transformer Block** — the hierarchical windowed self-attention mechanism from the original paper.
+Rather than adopting any one fixed model size, we evaluate a range of base channel widths $C \in \{24, 48, 72, 96, 120\}$ to study how model capacity interacts with the limited BraTS training data.
+The architecture wraps the Swin backbone with a CNN-based Projection Block (fusing 4 MRI modalities into a 3-channel input) and a CNN-based Reconstruction Block (mapping 2D decoder features back to a 3D segmentation volume).
+ 
+Performance is reported using **Dice Similarity Coefficient (DSC)** and **HD95** across the three standard BraTS evaluation regions: Whole Tumour, Tumour Core, and Enhancing Tumour.
+ 
+---
+ 
+## Dataset
+ 
+**BraTS 2021 Task 1** — glioblastoma segmentation from multi-parametric MRI.
+ 
+Each patient case provides four co-registered modalities (FLAIR, T1, T1ce, T2) at a resolution of 240×240×155, along with an expert-annotated voxel-wise tumour mask covering three subregions:
+- **NCR/NET** — necrotic core and non-enhancing tumour (label 1)
+- **Edema** — peritumoral oedema (label 2)
+- **Enhancing tumour** — active tumour visible on T1ce (label 4)
+ 
+The dataset contains ~1,200 patient cases and is available on Kaggle:
+[https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1](https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1)
+ 
+---
+ 
+## Method
+ 
+SwinBraTS processes each patient volume as follows:
+ 
+1. **Projection Block** — four MRI modalities (each 155×240×240, depth treated as channels) are independently processed by per-modality CNN branches and fused into a single 3×224×224 representation.
+2. **Swin Encoder** — three hierarchical stages of Swin Transformer Blocks downsample the representation from 56² to 7², doubling channels at each stage.
+3. **Bottleneck** — two Swin Transformer Blocks at 7²×8C, where windowed attention covers the full spatial extent.
+4. **Swin Decoder** — three upsampling stages with skip connections fusing encoder features at each scale.
+5. **Reconstruction Block** — transposed convolutions restore spatial resolution to 240×240, a 1×1 convolution expands to 4×155 channels, and a reshape produces the final 4×155×240×240 logit volume. A lightweight Conv3d(3,1,1) layer adds inter-slice depth consistency.
+ 
+Training uses a combined **Dice + Focal loss** to handle the severe class imbalance inherent in BraTS.
+On-GPU augmentation (random flips, affine rotation, bias field) is applied each batch with no DataLoader overhead.
+ 
 ---
 
 ## Project Structure
+
 ```
 swin-brats/
 │
@@ -85,54 +105,61 @@ swin-brats/
 
 ---
 
-## Method
-- Adapt Swin‑T patch embedding to accept **4 MRI channels** instead of 3 RGB channels.
-- Train a **2D Swin‑UNet–style segmentation model** on axial slices.
-- Evaluate performance using **Dice score** and **HD95**.
-- Analyze robustness under domain shift and discuss architectural implications.
-
----
-
-## Requirements
+## Getting Started
+ 
+**1. Create and activate a virtual environment (if needed)**
+```bash
+python -m venv myenv
+source myenv/bin/activate        # Linux / Mac
+myenv\Scripts\activate           # Windows
 ```
-torch
-torchvision
-monai
-numpy
-torchio
-matplotlib
-pyyaml
+ 
+**2. Install dependencies**
+```bash
+pip install -r requirements.txt
 ```
-
----
-
-## Training
+ 
+**3. Configure the run**
+ 
+Edit `configs/train_config.yml` to set your data paths, model size (`C`), batch size, and number of epochs before running.
+ 
+**4. Run** (all commands from the repository root)
+ 
+```bash
+# Training, validation, test evaluation, and loss plot — all in one
+python -m src.training.train
+ 
+# Visualize n random cases from the test set
+python visualization/visualize.py \
+    --n 2 \
+    --checkpoint checkpoints/best_model.pth \
+    --out_dir results/viz
+ 
+# Visualize the best and worst predicted cases
+python visualization/visualize_extremes.py \
+    --metric mean_dice \
+    --checkpoint checkpoints/best_model.pth \
+    --out_dir results/viz
 ```
-python src/training/train.py --config configs/train_config.yml
-```
-
-## Inference
-```
-python src/inference/predict.py --checkpoint path/to/model.pth
+ 
+On a SLURM cluster (e.g. DRAC H100):
+```bash
+sbatch train.sh
 ```
 
 ---
 
 ## Authors
+
 **COMP 4360 — Dr. Cristopher Henry**  
 **Group 5:**  
-- Duc Do  
-- Jordon Hong  
-- Muhammad Safdar  
+- Duc Do - dod2@myumanitoba.ca
+- Jordon Hong - hongj1@myumanitoba.ca
+- Muhammad Safdar - Muhammad.Safdar@umanitoba.ca
 
 ---
 
 ## Acknowledgements
-
-### Swin Transformer Paper
-Liu, Ze, et al. *Swin Transformer: Hierarchical Vision Transformer using Shifted Windows.*  
-Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV), 2021.
-
-### Dataset
-BraTS 2021 dataset hosted on Kaggle:  
-**[https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1/data](https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1/data)**
+ 
+- Liu et al., *Swin Transformer: Hierarchical Vision Transformer using Shifted Windows*, ICCV 2021
+- BraTS 2021 dataset: [https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1](https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1)
