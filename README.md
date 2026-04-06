@@ -34,26 +34,53 @@ swin-brats/
 │
 ├── README.md
 ├── requirements.txt
+├── train.sh                        # SLURM job script for DRAC H100
 │
-├── configs/                 # model + training configs (.yml)
-│   ├── swin_tiny.yml
-│   ├── train_config.yml
-│   └── dataset_config.yml
+├── configs/
+│   └── train_config.yml            # model + training hyperparameters
 │
-├── data/
-│   ├── raw/                 # downloaded BraTS .nii.gz files
-│   ├── processed/           # preprocessed numpy arrays or slices
-│   └── splits/              # train/val/test patient lists
+├── results/                        # per-run JSON result files
+│   ├── C=24/
+│   ├── C=48/
+│   ├── C=72/
+│   ├── C=96/
+│   ├── C=120/
+│   └── no-augmentation/
 │
 ├── src/
-│   ├── models/              # Swin-T backbone + segmentation head
-│   ├── data/                # dataset + preprocessing
-│   ├── training/            # training loop, losses, metrics
-│   ├── utils/               # logging, visualization, config loading
-│   └── inference/           # prediction script
+│   ├── models/
+│   │   ├── SwinTransformers/       # core Swin block components
+│   │   │   ├── mlp.py
+│   │   │   ├── swinTransformerBlock.py
+│   │   │   ├── window_attention.py
+│   │   │   └── window_utils.py
+│   │   ├── projection_block.py     # modality projection (4 MRI → 3-channel)
+│   │   ├── swinEncoder.py          # patch partition, merging, encoder stages
+│   │   ├── bottleneck.py           # global attention at 7×7
+│   │   ├── swinDecoder.py          # patch expanding, decoder stages
+│   │   ├── skipConnection.py       # encoder-decoder skip fusion
+│   │   ├── reconstruction_block.py # 2D features → 3D segmentation volume
+│   │   ├── swinUNet.py             # full encoder-decoder backbone
+│   │   └── swinBraTS_full.py       # end-to-end SwinBraTS model
+│   │
+│   ├── data/
+│   │   ├── data_loader.py          # MRIDataset + collate function
+│   │   └── preprocessing.py        # BraTSPreprocessor (.nii.gz → .npy)
+│   │
+│   ├── training/
+│   │   ├── train.py                # main training script
+│   │   ├── trainer.py              # SwinTrainer class (train/val/test loops)
+│   │   └── gpu_augmentation.py     # on-GPU flip, affine, bias field
+│   │
+│   └── utils/
+│       ├── losses.py               # Dice + Focal loss (MONAI)
+│       ├── metrics.py              # DSC and HD95 for BraTS regions
+│       └── config.py               # YAML config loader
 │
-├── notebooks/               # EDA + sanity checks
-└── experiments/             # logs + checkpoints
+└── visualization/
+    ├── plot_c_ablation.py          # C parameter ablation plots
+    ├── visualize.py                # per-sample prediction visualizer
+    └── visualize_extremes.py       # best/worst test case comparison
 ```
 
 ---
