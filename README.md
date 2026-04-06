@@ -2,7 +2,7 @@
 
 ## Overview
 This project evaluates how well the **Swin Transformer** architecture adapts to a **domain shift** from natural RGB images to **multi‑modal medical imaging**.  
-We use the **Swin‑T (Tiny)** variant (~29M parameters) and apply it to **brain tumor segmentation** on the **BraTS 2021** dataset.
+We use the **Swin‑T (Tiny)** variant and apply it to **brain tumor segmentation** on the **BraTS 2021** dataset.
 
 The goal is to understand:
 - how Swin behaves when shifted from 3‑channel natural images to 4‑channel MRI,
@@ -24,7 +24,7 @@ Segmentation requires the model to predict a **class label for every pixel**, pr
 The dataset is available on Kaggle:  
 **[BraTS 2021 Task 1 Dataset](https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1/data)**
 
-Training a Swin‑T segmentation model on an **NVIDIA A40 GPU** is feasible within **<12 hours**.
+Training a Swin‑T segmentation model on an **NVIDIA H100 GPU** is feasible within **<12 hours**.
 
 ---
 
@@ -88,7 +88,7 @@ swin-brats/
 ## Method
 - Adapt Swin‑T patch embedding to accept **4 MRI channels** instead of 3 RGB channels.
 - Train a **2D Swin‑UNet–style segmentation model** on axial slices.
-- Evaluate performance using **Dice score** and **IoU**.
+- Evaluate performance using **Dice score** and **HD95**.
 - Analyze robustness under domain shift and discuss architectural implications.
 
 ---
@@ -97,10 +97,9 @@ swin-brats/
 ```
 torch
 torchvision
-timm
+monai
 numpy
-nibabel
-opencv-python
+torchio
 matplotlib
 pyyaml
 ```
