@@ -37,9 +37,9 @@ model:
   embed_dim: 48                       # initial embedding dim, default is 48, only used in PatchPartition
   window_size: 7                      # default is 7, used in SwinTransformerBlock (7x7 window for local attention)
   patch_size: 4                       # default is 4 (3x4x4 -> 1 patch), only used in PatchPartition
-  C: 96                               # the C parameter in the paper, default is 96, used in SwinTransformerBlock (96->192->384->768)
+  C: 24                               # the C parameter in the paper, default is 24, 96 is used in SwinTransformerBlock (96->192->384->768)
   hidden_channels_projection: 16      # default 16. each of the modalities is projected to this dimension (155->16) before concatenation (4*16=64) then 1*1 convolution to 3
-  hidden_channels_reconstruction: 64  # default 64. the dimension used in the reconstruction head (C=96->64), (before 1*1 convolution to 4*155)
+  hidden_channels_reconstruction: 64  # default 64. the dimension used in the reconstruction head (C=24->64), (before 1*1 convolution to 4*155)
 
 early_stopping:
   enabled: true
