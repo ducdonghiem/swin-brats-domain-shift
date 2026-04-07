@@ -180,3 +180,4 @@ sbatch train.sh
  
 - Liu et al., *Swin Transformer: Hierarchical Vision Transformer using Shifted Windows*, ICCV 2021
 - BraTS 2021 dataset: [https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1](https://www.kaggle.com/datasets/dschettler8845/brats-2021-task1)
+- Swin Transformer backbone implementation sourced from [Microsoft/Swin-Transformer](https://github.com/microsoft/Swin-Transformer/tree/main/models)
