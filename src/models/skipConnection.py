@@ -3,7 +3,7 @@ import torch.nn as nn
 
 class SkipConnection(nn.Module):
     """
-    Skip connection module adapted for SwinBraTS encoder-decoder fusion.
+    Skip connection module adaptation for SwinBraTS encoder-decoder fusion.
     
     Concatenates encoder and decoder features, then applies:
     - Conv2d (1x1) to reduce channels

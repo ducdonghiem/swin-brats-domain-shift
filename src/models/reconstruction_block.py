@@ -2,7 +2,7 @@ import torch.nn as nn
 
 class ReconstructionBlock(nn.Module):
     '''
-    Custom reconstruction block adaptation for BraTS dataset.
+    Reconstruction block adaptation for BraTS dataset.
 
     The reconstruction block takes in the final feature map from the decoder in three stages.
     Each stage upsamples the feature map with transposed convolutions, 

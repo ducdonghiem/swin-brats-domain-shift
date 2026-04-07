@@ -4,7 +4,7 @@ from .SwinTransformers import SwinTransformerBlock
 
 class PatchExpanding(nn.Module):
     """
-    Custom Patch Expanding Layer. Upsamples by 2x and decreases channels by 2x
+    Patch Expanding layer adaptation. Upsamples by 2x and decreases channels by 2x
     using a linear projection.
     
     Args:

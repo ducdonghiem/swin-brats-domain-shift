@@ -38,10 +38,12 @@ class ModalityCNN(nn.Module):
 
 class ProjectionBlock(nn.Module):
     '''
-    Custom projection block adaptation for BraTS dataset. 
+    Projection block adaptation for BraTS dataset.
     
     Data is stored as four 3D volumes but must be learned as a single input.
-    The projection block downsamples each modality volume and fuses them with a 1x1 convolution, producing a 2D feature map with the same spatial dimensions as the input image and a reduced number of channels (C=8). This is then fed into the SwinUNet encoder as a single input.
+    The projection block downsamples each modality volume and fuses them with a 1x1 convolution,
+    producing a 2D feature map with the same spatial dimensions as the input image and
+    a reduced number of channels (C=8). This is then fed into the SwinUNet encoder as a single input.
     '''
 
     def __init__(self, in_channels=155, hidden_channels=8, out_channels=3, num_modalities=4):

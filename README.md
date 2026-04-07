@@ -162,6 +162,8 @@ On a SLURM cluster (e.g. DRAC H100):
 sbatch train.sh
 ```
 
+*Note*: before running `train.sh`, update line 12 with the environment path on your machine.
+
 ---
 
 ## Authors
