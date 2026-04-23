@@ -8,7 +8,8 @@
     <img src="results/C=72/loss_plot_20260326_201140.png" width="48%">
 </p>
 
- 
+### For details, please see the [project report](report.pdf).
+
 ---
  
 ## Overview
@@ -61,6 +62,7 @@ swin-brats/
 ├── README.md
 ├── requirements.txt
 ├── train.sh                        # SLURM job script for DRAC H100
+├── report.pdf                      # full report paper of the project
 │
 ├── configs/
 │   └── train_config.yml            # model + training hyperparameters
